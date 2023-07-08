@@ -9,23 +9,19 @@ fn run_container(
     image_name: &str,
     cmd: &str,
 ) -> io::Result<String> {
-    let mut cmd_parts = cmd.split_whitespace();
-    let cmd_name = cmd_parts.next();
-    let cmd_args: Vec<&str> = cmd_parts.collect();
-
     let mut command = Command::new(container_runner);
     command.arg("run").arg("--name").arg(name);
 
-    if let Some(entrypoint) = cmd_name {
-        println!("entrypoint: {}", entrypoint);
-        command.arg("--entrypoint").arg(entrypoint);
-    }
-
-    command.arg(image_name); // image_name should between entrypoint and its arguments
-
-    println!("cmd_args: {:?}", cmd_args);
-    for arg in cmd_args {
-        command.arg(arg);
+    if !cmd.is_empty() {
+        println!("Using sh -c to run command: {}", cmd);
+        command
+            .arg("--entrypoint")
+            .arg("sh")
+            .arg(image_name)
+            .arg("-c")
+            .arg(cmd);
+    } else {
+        command.arg(image_name);
     }
 
     let output = command.output()?;
@@ -48,6 +44,22 @@ fn run_container(
 fn remove_container(container_runner: &str, name: &str) -> io::Result<()> {
     let mut command = Command::new(container_runner);
     command.arg("rm").arg(name);
+
+    let output = command.output()?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            String::from_utf8_lossy(&output.stderr),
+        ))
+    }
+}
+
+fn commit_container(container_runner: &str, name: &str, image_name: &str) -> io::Result<()> {
+    let mut command = Command::new(container_runner);
+    command.arg("commit").arg(name).arg(image_name);
 
     let output = command.output()?;
 
@@ -148,5 +160,64 @@ mod tests {
 
         // Try to remove a container that doesn't exist
         assert!(remove_container(container_runner, name).is_err());
+    }
+
+    #[test]
+    fn test_commit_container_with_file() {
+        let container_runner = "podman"; // Or "docker"
+        let container_name = "test_commit_with_file";
+        let container2_name = "test_run_with_file";
+        let image_name = "ubuntu";
+
+        // Create a file in the container using the echo command
+        let cmd = "bash -c 'echo \"Hello, World!\" > /testfile.txt'";
+        let _ = remove_container(container_runner, container_name);
+        let _ = run_container(container_runner, container_name, image_name, cmd);
+
+        // Commit the container to a new image
+        let new_image_name = "test_commit_image_with_file";
+        let result = commit_container(container_runner, container_name, new_image_name);
+        assert!(result.is_ok(), "Commit failed: {:?}", result.err());
+
+        // Run a new container with the new image and check if the file exists
+        let cmd_check_file = "bash -c 'cat /testfile.txt'";
+        let _ = remove_container(container_runner, container2_name);
+        let run_result = run_container(
+            container_runner,
+            container2_name,
+            new_image_name,
+            cmd_check_file,
+        );
+        assert!(run_result.is_ok(), "File not found: {:?}", run_result.err());
+
+        // Check if the file contains the expected content
+        let file_content = run_result.unwrap();
+        assert_eq!(
+            file_content.trim(),
+            "Hello, World!",
+            "Unexpected file content"
+        );
+
+        // Clean up: remove the temporary container and the new image
+        let _ = remove_container(container_runner, container_name);
+        let _ = remove_container(container_runner, container2_name);
+        let _ = Command::new(container_runner)
+            .arg("rmi")
+            .arg(new_image_name)
+            .output();
+    }
+
+    #[test]
+    fn test_commit_invalid_container() {
+        let container_runner = "podman";
+        let name = "invalid_container";
+        let image_name = "new_image_from_invalid_container";
+
+        let result = commit_container(container_runner, name, image_name);
+
+        assert!(
+            result.is_err(),
+            "Expected an error when committing an invalid container, but got a success."
+        );
     }
 }
