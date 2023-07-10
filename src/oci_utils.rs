@@ -1,27 +1,63 @@
 // run external progamm such as "podman" "docker"
 
+use std::error::Error;
+use std::fmt;
 use std::io;
 use std::process::Command;
+
+#[derive(Debug)]
+struct CommandError {
+    stdout: String,
+    stderr: String,
+}
+impl fmt::Display for CommandError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "stdout: {}\nstderr: {}", self.stdout, self.stderr)
+    }
+}
+
+impl Error for CommandError {}
 
 fn run_container(
     container_runner: &str,
     name: &str,
     image_name: &str,
     cmd: &str,
-) -> io::Result<String> {
-    let mut command = Command::new(container_runner);
-    command.arg("run").arg("--name").arg(name);
+) -> io::Result<(String, String)> {
+    let mut args = vec!["run", "--name", name, "--user", "root"];
 
     if !cmd.is_empty() {
         println!("Using sh -c to run command: {}", cmd);
-        command
-            .arg("--entrypoint")
-            .arg("sh")
-            .arg(image_name)
-            .arg("-c")
-            .arg(cmd);
+        args.extend_from_slice(&["--entrypoint", "sh", image_name, "-c", cmd]);
     } else {
-        command.arg(image_name);
+        args.push(image_name);
+    }
+
+    let (stdout, stderr) = run_command(container_runner, &args)?;
+    Ok((stdout, stderr))
+}
+
+fn remove_container(container_runner: &str, name: &str) -> io::Result<(String, String)> {
+    let args = ["rm", name];
+    let (stdout, stderr) = run_command(container_runner, &args)?;
+    Ok((stdout, stderr))
+}
+
+fn commit_container(
+    container_runner: &str,
+    name: &str,
+    image_name: &str,
+) -> io::Result<(String, String)> {
+    let args = ["commit", name, image_name];
+    let (stdout, stderr) = run_command(container_runner, &args)?;
+    Ok((stdout, stderr))
+}
+
+fn run_command(command_name: &str, args: &[&str]) -> io::Result<(String, String)> {
+    let mut command = Command::new(command_name);
+
+    for arg in args {
+        command.arg(arg);
     }
 
     let output = command.output()?;
@@ -34,41 +70,12 @@ fn run_container(
 
     if output.status.success() {
         println!("Command executed successfully");
-        Ok(stdout)
+        Ok((stdout, stderr))
     } else {
         println!("Command failed");
-        Err(io::Error::new(io::ErrorKind::Other, stderr))
-    }
-}
-
-fn remove_container(container_runner: &str, name: &str) -> io::Result<()> {
-    let mut command = Command::new(container_runner);
-    command.arg("rm").arg(name);
-
-    let output = command.output()?;
-
-    if output.status.success() {
-        Ok(())
-    } else {
         Err(io::Error::new(
             io::ErrorKind::Other,
-            String::from_utf8_lossy(&output.stderr),
-        ))
-    }
-}
-
-fn commit_container(container_runner: &str, name: &str, image_name: &str) -> io::Result<()> {
-    let mut command = Command::new(container_runner);
-    command.arg("commit").arg(name).arg(image_name);
-
-    let output = command.output()?;
-
-    if output.status.success() {
-        Ok(())
-    } else {
-        Err(io::Error::new(
-            io::ErrorKind::Other,
-            String::from_utf8_lossy(&output.stderr),
+            CommandError { stdout, stderr },
         ))
     }
 }
@@ -191,7 +198,7 @@ mod tests {
         assert!(run_result.is_ok(), "File not found: {:?}", run_result.err());
 
         // Check if the file contains the expected content
-        let file_content = run_result.unwrap();
+        let (file_content, _) = run_result.unwrap();
         assert_eq!(
             file_content.trim(),
             "Hello, World!",
