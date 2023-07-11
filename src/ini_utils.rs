@@ -2,7 +2,28 @@
 
 use std::collections::HashMap;
 
-fn from_ini(input: &str) -> Vec<(String, Vec<(String, String)>)> {
+pub fn from_ini(input: &str) -> Vec<(String, Vec<(String, String)>)> {
+    #[inline]
+    fn remove_quotes(s: &str) -> String {
+        let s = s.trim();
+        let chars: Vec<char> = s.chars().collect();
+        let len = chars.len();
+
+        if len >= 2 {
+            let (first, last) = (chars[0], chars[len - 1]);
+            let count = match (first, last) {
+                ('\'', '\'') => chars.iter().filter(|&c| *c == '\'').count(),
+                ('"', '"') => chars.iter().filter(|&c| *c == '"').count(),
+                _ => return s.to_string(),
+            };
+
+            if count <= 2 {
+                return s[1..len - 1].to_string();
+            }
+        }
+
+        s.to_string()
+    }
     let mut result: Vec<(String, Vec<(String, String)>)> = Vec::new();
     let mut current_section = String::new();
 
@@ -23,7 +44,7 @@ fn from_ini(input: &str) -> Vec<(String, Vec<(String, String)>)> {
             }
             if let Some((_, section)) = result.iter_mut().find(|(name, _)| name == &current_section)
             {
-                section.push((key.to_string(), value.to_string()));
+                section.push((remove_quotes(key), remove_quotes(value)));
             }
         }
     }
@@ -31,7 +52,7 @@ fn from_ini(input: &str) -> Vec<(String, Vec<(String, String)>)> {
     result
 }
 
-fn to_ini(data: &[(String, Vec<(String, String)>)]) -> String {
+pub fn to_ini(data: &[(String, Vec<(String, String)>)]) -> String {
     let mut output = String::new();
 
     for (section_name, section_data) in data.iter() {
@@ -47,7 +68,7 @@ fn to_ini(data: &[(String, Vec<(String, String)>)]) -> String {
     output
 }
 
-fn merge_ini_data(
+pub fn merge_ini(
     data: Vec<(String, Vec<(String, String)>)>,
 ) -> HashMap<String, HashMap<String, Vec<String>>> {
     let mut merged_data = HashMap::new();
@@ -142,7 +163,7 @@ key2=value2
     #[test]
     fn test_merge_ini_data() {
         let input = sample_ini_data();
-        let output = merge_ini_data(input);
+        let output = merge_ini(input);
 
         let mut expected_output = HashMap::new();
 
