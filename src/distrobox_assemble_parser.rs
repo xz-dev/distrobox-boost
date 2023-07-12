@@ -37,7 +37,12 @@ pub fn parse_distrobox_assemble(content: &str) -> HashMap<String, ContainerAssem
                 name,
                 ContainerAssembleData {
                     flags: entry.get("flags").map(|i| i.clone()),
-                    packages: entry.get("packages").map(|i| i.clone()),
+                    packages: entry.get("packages").map(|i| {
+                        i.iter()
+                            .flat_map(|pkg_str| pkg_str.split_whitespace())
+                            .map(|pkg| pkg.to_string())
+                            .collect::<Vec<String>>()
+                    }),
                     home: entry.get("home").map(|h| h.join(" ")),
                     image: entry.get("image").map(|i| i.join(" ")),
                     init_hooks: entry.get("init_hooks").map(|i| i.clone()),
@@ -97,7 +102,7 @@ pull=true
 root=true
 unshare_ipc=true
 unshare_netns=false
-    "#;
+"#;
 
         let result = parse_distrobox_assemble(content);
 
@@ -106,7 +111,7 @@ unshare_netns=false
 
         let entry = &result["test_section"];
         assert_eq!(entry.flags.as_ref().unwrap(), &["--net host"]);
-        assert_eq!(entry.packages.as_ref().unwrap(), &["vim curl"]);
+        assert_eq!(entry.packages.as_ref().unwrap(), &["vim", "curl"]);
         assert_eq!(entry.home.as_ref().unwrap(), "/home/test_user");
         assert_eq!(
             entry.image.as_ref().unwrap(),
@@ -148,7 +153,7 @@ image=docker.io/library/ubuntu:20.04
 flags="--net" "bridge"
 home=/home/user2
 image=docker.io/library/debian:10
-        "#;
+"#;
 
         let result = parse_distrobox_assemble(content);
 
@@ -179,8 +184,9 @@ image=docker.io/library/debian:10
 [test_section]
 flags=--net host
 packages=vim curl
+packages="nano wget"
 home=/home/test_user
-        "#;
+"#;
 
         let result = parse_distrobox_assemble(content);
 
@@ -189,7 +195,10 @@ home=/home/test_user
 
         let entry = &result["test_section"];
         assert_eq!(entry.flags.as_ref().unwrap(), &["--net host"]);
-        assert_eq!(entry.packages.as_ref().unwrap(), &["vim curl"]);
+        assert_eq!(
+            entry.packages.as_ref().unwrap(),
+            &["vim", "curl", "nano", "wget"]
+        );
         assert_eq!(entry.home.as_ref().unwrap(), "/home/test_user");
         assert!(entry.image.is_none());
     }
