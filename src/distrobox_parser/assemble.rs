@@ -1,23 +1,50 @@
+use crate::distrobox_parser::config::get_distrobox_config;
 use crate::ini_utils::{from_ini, merge_ini, to_ini};
 use std::collections::HashMap;
 use std::fs;
 
+#[derive(Clone)]
 pub struct ContainerAssembleData {
-    flags: Option<Vec<String>>,
-    packages: Option<Vec<String>>,
-    home: Option<String>,
-    image: Option<String>,
-    init_hooks: Option<Vec<String>>,
-    pre_init_hooks: Option<Vec<String>>,
-    volumes: Option<HashMap<String, String>>,
-    entry: Option<bool>,
-    start_now: Option<bool>,
-    init: Option<bool>,
-    nvidia: Option<bool>,
-    pull: Option<bool>,
-    root: Option<bool>,
-    unshare_ipc: Option<bool>,
-    unshare_netns: Option<bool>,
+    pub flags: Option<Vec<String>>,
+    pub packages: Option<Vec<String>>,
+    pub home: Option<String>,
+    pub image: String,
+    pub init_hooks: Option<Vec<String>>,
+    pub pre_init_hooks: Option<Vec<String>>,
+    pub volumes: Option<HashMap<String, String>>,
+    pub entry: Option<bool>,
+    pub start_now: Option<bool>,
+    pub init: Option<bool>,
+    pub nvidia: Option<bool>,
+    pub pull: Option<bool>,
+    pub root: Option<bool>,
+    pub unshare_ipc: Option<bool>,
+    pub unshare_netns: Option<bool>,
+
+    // extra fields for the tool
+    pub package_manager: Option<String>,
+}
+impl Default for ContainerAssembleData {
+    fn default() -> Self {
+        Self {
+            flags: None,
+            packages: None,
+            home: None,
+            image: String::new(),
+            init_hooks: None,
+            pre_init_hooks: None,
+            volumes: None,
+            entry: None,
+            start_now: None,
+            init: None,
+            nvidia: None,
+            pull: None,
+            root: None,
+            unshare_ipc: None,
+            unshare_netns: None,
+            package_manager: None,
+        }
+    }
 }
 
 pub fn read_distrobox_assemble(file_path: &str) -> HashMap<String, ContainerAssembleData> {
@@ -29,6 +56,10 @@ pub fn read_distrobox_assemble(file_path: &str) -> HashMap<String, ContainerAsse
 pub fn parse_distrobox_assemble(content: &str) -> HashMap<String, ContainerAssembleData> {
     let parsed = from_ini(content);
     let merged = merge_ini(parsed);
+    let config = get_distrobox_config();
+    let default_image = config
+        .get("conrainer_image_default")
+        .expect("No default image found");
 
     merged
         .into_iter()
@@ -44,7 +75,10 @@ pub fn parse_distrobox_assemble(content: &str) -> HashMap<String, ContainerAssem
                             .collect::<Vec<String>>()
                     }),
                     home: entry.get("home").map(|h| h.join(" ")),
-                    image: entry.get("image").map(|i| i.join(" ")),
+                    image: entry
+                        .get("image")
+                        .map(|i| i.join(" "))
+                        .unwrap_or(default_image.clone()),
                     init_hooks: entry.get("init_hooks").map(|i| i.clone()),
                     pre_init_hooks: entry.get("pre_init_hooks").map(|i| i.clone()),
                     volumes: entry.get("volumes").map(|i| {
@@ -65,6 +99,7 @@ pub fn parse_distrobox_assemble(content: &str) -> HashMap<String, ContainerAssem
                     root: get_value_as_bool_with_default(&entry, "root"),
                     unshare_ipc: get_value_as_bool_with_default(&entry, "unshare_ipc"),
                     unshare_netns: get_value_as_bool_with_default(&entry, "unshare_netns"),
+                    package_manager: entry.get("package_manager").map(|h| h.join(" ")),
                 },
             )
         })
@@ -113,10 +148,7 @@ unshare_netns=false
         assert_eq!(entry.flags.as_ref().unwrap(), &["--net host"]);
         assert_eq!(entry.packages.as_ref().unwrap(), &["vim", "curl"]);
         assert_eq!(entry.home.as_ref().unwrap(), "/home/test_user");
-        assert_eq!(
-            entry.image.as_ref().unwrap(),
-            "docker.io/library/ubuntu:20.04"
-        );
+        assert_eq!(entry.image, "docker.io/library/ubuntu:20.04");
         assert_eq!(entry.init_hooks.as_ref().unwrap(), &["hook1", "hook2"]);
         assert_eq!(
             entry.pre_init_hooks.as_ref().unwrap(),
@@ -165,7 +197,7 @@ image=docker.io/library/debian:10
         assert_eq!(entry1.flags.as_ref().unwrap(), &["--net host"]);
         assert_eq!(entry1.home.as_ref().unwrap(), "/home/user1");
         assert_eq!(
-            entry1.image.as_ref().unwrap(),
+            entry1.image,
             "docker.io/library/ubuntu:20.04"
         );
 
@@ -173,7 +205,7 @@ image=docker.io/library/debian:10
         assert_eq!(entry2.flags.as_ref().unwrap(), &["\"--net\" \"bridge\""]);
         assert_eq!(entry2.home.as_ref().unwrap(), "/home/user2");
         assert_eq!(
-            entry2.image.as_ref().unwrap(),
+            entry2.image,
             "docker.io/library/debian:10"
         );
     }
@@ -200,7 +232,7 @@ home=/home/test_user
             &["vim", "curl", "nano", "wget"]
         );
         assert_eq!(entry.home.as_ref().unwrap(), "/home/test_user");
-        assert!(entry.image.is_none());
+        assert!(!entry.image.is_empty());
     }
 
     #[test]

@@ -18,14 +18,18 @@ impl fmt::Display for CommandError {
 
 impl Error for CommandError {}
 
-fn run_container(
+pub fn run_container(
     container_runner: &str,
     name: &str,
     image_name: &str,
     cmd: &str,
 ) -> io::Result<(String, String)> {
-    let mut args = vec!["run", "--name", name, "--user", "root"];
-
+    let mut args = vec!["run", "--user", "root"];
+    if !name.is_empty() {
+        args.extend_from_slice(&["--name", name]);
+    } else {
+        args.push("--rm");
+    }
     if !cmd.is_empty() {
         println!("Using sh -c to run command: {}", cmd);
         args.extend_from_slice(&["--entrypoint", "sh", image_name, "-c", cmd]);
@@ -37,7 +41,7 @@ fn run_container(
     Ok((stdout, stderr))
 }
 
-fn remove_container(container_runner: &str, name: &str) -> io::Result<(String, String)> {
+pub fn remove_container(container_runner: &str, name: &str) -> io::Result<(String, String)> {
     let args = ["rm", name];
     let (stdout, stderr) = run_command(container_runner, &args)?;
     Ok((stdout, stderr))
@@ -95,6 +99,23 @@ mod tests {
         let result = run_container(container_runner, name, image_name, cmd);
         let _ = remove_container(container_runner, name);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_run_container_with_empty_name() {
+        let container_runner = "podman";
+        let image_name = "ubuntu";
+        let cmd = "echo 'Hello, World!'";
+
+        let result = run_container(container_runner, "", image_name, cmd);
+        assert!(
+            result.is_ok(),
+            "Expected the container to run successfully with an empty name."
+        );
+
+        // Check if the command output is as expected
+        let (stdout, _) = result.unwrap();
+        assert_eq!(stdout.trim(), "Hello, World!", "Unexpected command output");
     }
 
     #[test]
