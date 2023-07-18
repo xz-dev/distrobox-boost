@@ -57,8 +57,9 @@ pub fn parse_distrobox_assemble(content: &str) -> HashMap<String, ContainerAssem
     let parsed = from_ini(content);
     let merged = merge_ini(parsed);
     let config = get_distrobox_config();
+    println!("config: {:?}", config);
     let default_image = config
-        .get("conrainer_image_default")
+        .get("container_image_default")
         .expect("No default image found");
 
     merged
