@@ -6,24 +6,29 @@ use std::io;
 use std::process::Command;
 
 #[derive(Debug)]
-struct CommandError {
-    stdout: String,
-    stderr: String,
+pub struct CommandError {
+    pub stdout: String,
+    pub stderr: String,
+    pub inner: Option<io::Error>,
 }
 impl fmt::Display for CommandError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "stdout: {}\nstderr: {}", self.stdout, self.stderr)
     }
 }
-
-impl Error for CommandError {}
+impl Error for CommandError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        // 泛型错误，没有记录其内部原因。
+        None
+    }
+}
 
 pub fn run_container(
     container_runner: &str,
     name: &str,
     image_name: &str,
     cmd: &str,
-) -> io::Result<(String, String)> {
+) -> Result<(String, String), CommandError> {
     let mut args = vec!["run", "--user", "root"];
     if !name.is_empty() {
         args.extend_from_slice(&["--name", name]);
@@ -41,30 +46,58 @@ pub fn run_container(
     Ok((stdout, stderr))
 }
 
-pub fn remove_container(container_runner: &str, name: &str) -> io::Result<(String, String)> {
+pub fn remove_container(
+    container_runner: &str,
+    name: &str,
+) -> Result<(String, String), CommandError> {
     let args = ["rm", name];
     let (stdout, stderr) = run_command(container_runner, &args)?;
     Ok((stdout, stderr))
 }
 
-fn commit_container(
+pub fn commit_container(
     container_runner: &str,
     name: &str,
     image_name: &str,
-) -> io::Result<(String, String)> {
+) -> Result<(String, String), CommandError> {
     let args = ["commit", name, image_name];
     let (stdout, stderr) = run_command(container_runner, &args)?;
     Ok((stdout, stderr))
 }
 
-fn run_command(command_name: &str, args: &[&str]) -> io::Result<(String, String)> {
+pub fn check_image_exists(container_runner: &str, image_name: &str) -> Result<bool, CommandError> {
+    let args = vec!["images", "-q", image_name];
+    let (stdout, _stderr) = run_command(container_runner, &args)?;
+    Ok(!stdout.trim().is_empty())
+}
+
+pub fn check_container_exists(
+    container_runner: &str,
+    container_name: &str,
+) -> Result<bool, CommandError> {
+    let filter_string = format!("name=^{}$", container_name);
+    let args = vec!["ps", "-aq", "-f", &filter_string];
+    let (stdout, _stderr) = run_command(container_runner, &args)?;
+    Ok(!stdout.trim().is_empty())
+}
+
+fn run_command(command_name: &str, args: &[&str]) -> Result<(String, String), CommandError> {
     let mut command = Command::new(command_name);
 
     for arg in args {
         command.arg(arg);
     }
 
-    let output = command.output()?;
+    let output = match command.output() {
+        Ok(output) => output,
+        Err(e) => {
+            return Err(CommandError {
+                stdout: String::new(),
+                stderr: String::new(),
+                inner: Some(e),
+            })
+        }
+    };
 
     let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
@@ -77,10 +110,11 @@ fn run_command(command_name: &str, args: &[&str]) -> io::Result<(String, String)
         Ok((stdout, stderr))
     } else {
         println!("Command failed");
-        Err(io::Error::new(
-            io::ErrorKind::Other,
-            CommandError { stdout, stderr },
-        ))
+        Err(CommandError {
+            stdout,
+            stderr,
+            inner: None,
+        })
     }
 }
 
@@ -247,5 +281,47 @@ mod tests {
             result.is_err(),
             "Expected an error when committing an invalid container, but got a success."
         );
+    }
+
+    #[test]
+    fn test_check_container_exists() {
+        let container_runner = "podman";
+        let name = "test_check_container_exists";
+        let _ = remove_container(container_runner, name);
+
+        // Before run the container
+        let result = check_container_exists(container_runner, name);
+        assert!(result.is_ok());
+        assert_eq!(false, result.unwrap());
+
+        // After run the container
+        let image_name = "ubuntu";
+        let cmd = "ls";
+        let _ = run_container(container_runner, name, image_name, cmd);
+        let result = check_container_exists(container_runner, name);
+        let _ = remove_container(container_runner, name);
+
+        assert!(result.is_ok());
+        assert_eq!(true, result.unwrap());
+    }
+
+    #[test]
+    fn test_check_image_exists() {
+        let container_runner = "podman";
+
+        // Non-existent image
+        let image_name = "non_existent_image";
+        let _ = remove_container(container_runner, image_name);
+        let result = check_image_exists(container_runner, image_name);
+        assert!(result.is_ok());
+        assert_eq!(false, result.unwrap());
+
+        // Existent image
+        let image_name = "ubuntu";
+        let _ = run_container(container_runner, "", image_name, "");
+        let result = check_image_exists(container_runner, image_name);
+
+        assert!(result.is_ok());
+        assert_eq!(true, result.unwrap());
     }
 }

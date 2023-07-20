@@ -195,6 +195,7 @@ mod tests {
         container_assemble_data.packages = Some(packages);
         ContainerNode {
             container_name,
+            virtual_container: false,
             container_assemble_data,
             children,
         }

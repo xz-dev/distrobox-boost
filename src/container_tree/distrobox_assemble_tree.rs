@@ -7,6 +7,7 @@ use std::rc::Rc;
 #[derive(Clone)]
 pub struct ContainerNode {
     pub container_name: String,
+    pub virtual_container: bool,
     pub container_assemble_data: ContainerAssembleData,
     pub children: Vec<ContainerNode>,
 }
@@ -16,6 +17,7 @@ pub fn distrobox_assemble_to_tree(
 ) -> Vec<ContainerNode> {
     pub struct ContainerNodeRef {
         container_name: String,
+        virtual_container: bool,
         container_assemble_data: ContainerAssembleData,
         children: Vec<Rc<RefCell<ContainerNodeRef>>>,
     }
@@ -27,6 +29,7 @@ pub fn distrobox_assemble_to_tree(
 
         let node_ref = Rc::new(RefCell::new(ContainerNodeRef {
             container_name: container_name.clone(),
+            virtual_container: false,
             container_assemble_data: container_assemble_data.clone(),
             children: vec![],
         }));
@@ -40,6 +43,7 @@ pub fn distrobox_assemble_to_tree(
             };
             let parent_node_ref = Rc::new(RefCell::new(ContainerNodeRef {
                 container_name: image_name.clone(),
+                virtual_container: true,
                 container_assemble_data,
                 children: vec![],
             }));
@@ -74,6 +78,7 @@ pub fn distrobox_assemble_to_tree(
 
         ContainerNode {
             container_name: node_borrow.container_name.clone(),
+            virtual_container: node_borrow.virtual_container,
             container_assemble_data: node_borrow.container_assemble_data.clone(),
             children, // Fill in the sorted children
         }
