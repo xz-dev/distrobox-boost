@@ -32,7 +32,7 @@ static PACKAGE_MAP: &[(&str, &str)] = &[
     ("opensuse", "zypper"),
     ("ubuntu", "apt"),
 ];
-pub fn get_package_manager(distro_id: &str, distro_version: &str) -> String {
+pub fn get_package_manager(distro_id: &str, _distro_version: &str) -> String {
     // distr_info: cat /etc/os-release
     // data from os_info.rs parse_os_release
     let mut package_manager = String::new();

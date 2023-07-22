@@ -6,7 +6,7 @@ pub fn build_image(
     container_runner: &str,
     image_name: &str,
     base_image: &str,
-    packages: Vec<String>,
+    packages: &Vec<String>,
 ) -> Result<String, CommandError> {
     let mut cmd = "cat /etc/os-release".to_string();
     let (stdout, _stderr) = run_container(container_runner, "", base_image, &cmd)?;
@@ -47,7 +47,7 @@ pub fn build_image(
     let mut last_image_name = updated_image_name.clone();
     let mut package_container_name = format!("distrobox-{}-pkg", image_name);
     let mut package_image_name = format!("{}:distrobox-pkg", image_name);
-    for package in &packages {
+    for package in packages {
         package_container_name = format!("{}-{}", package_container_name, package);
         package_image_name = format!("{}-{}", package_image_name, package);
         println!("Install package: {}", package);
@@ -92,7 +92,7 @@ mod tests {
         let base_image = "archlinux";
         let packages = vec!["bash".to_string(), "pacman".to_string()];
 
-        let result = build_image(container_runner, image_name, base_image, packages);
+        let result = build_image(container_runner, image_name, base_image, &packages);
 
         match result {
             Ok(image_name) => {
@@ -113,7 +113,7 @@ mod tests {
         let base_image = "archlinux";
         let packages = vec!["fish".to_string(), "htop".to_string()];
 
-        let result = build_image(container_runner, image_name, base_image, packages).unwrap();
+        let result = build_image(container_runner, image_name, base_image, &packages).unwrap();
         println!("Final image name: {}", result);
 
         // Test if 'fish' and 'top' commands exist

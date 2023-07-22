@@ -12,7 +12,7 @@ pub struct ContainerNode {
     pub children: Vec<ContainerNode>,
 }
 
-pub fn distrobox_assemble_to_tree(
+pub fn distrobox_assemble_to_trees(
     container_assemble_data_map: &HashMap<String, ContainerAssembleData>,
 ) -> Vec<ContainerNode> {
     pub struct ContainerNodeRef {
@@ -96,12 +96,33 @@ pub fn distrobox_assemble_to_tree(
         .collect()
 }
 
+pub fn trees_to_distrobox_assemble(
+    trees: &Vec<ContainerNode>,
+) -> HashMap<String, ContainerAssembleData> {
+    let mut distrobox_assemble_data_map = HashMap::new();
+    fn tree_to_distobox_assemble(
+        tree: &ContainerNode,
+        distrobox_assemble_data_map: &mut HashMap<String, ContainerAssembleData>,
+    ) {
+        let container_name = &tree.container_name;
+        let container_assemble_data = &tree.container_assemble_data;
+        distrobox_assemble_data_map.insert(container_name.clone(), container_assemble_data.clone());
+        for child in &tree.children {
+            tree_to_distobox_assemble(child, distrobox_assemble_data_map);
+        }
+    }
+    for tree in trees {
+        tree_to_distobox_assemble(tree, &mut distrobox_assemble_data_map);
+    }
+    distrobox_assemble_data_map
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_distrobox_assemble_to_tree() {
+    fn test_distrobox_assemble_to_trees() {
         let mut container_assemble_data_map = HashMap::new();
         let mut data1 = ContainerAssembleData::default();
         data1.image = "base".to_string();
@@ -118,7 +139,7 @@ mod tests {
         data4.image = "base1".to_string();
         container_assemble_data_map.insert("container4".to_string(), data4);
 
-        let container_tree = distrobox_assemble_to_tree(&container_assemble_data_map);
+        let container_tree = distrobox_assemble_to_trees(&container_assemble_data_map);
 
         assert_eq!(container_tree.len(), 2);
         assert_eq!(container_tree[0].container_name, "base");
@@ -138,5 +159,81 @@ mod tests {
         assert_eq!(container_tree[1].container_name, "base1");
         assert_eq!(container_tree[1].children.len(), 1);
         assert_eq!(container_tree[1].children[0].container_name, "container4");
+    }
+
+    #[test]
+    fn test_trees_to_distrobox_assemble() {
+        let mut data1 = ContainerAssembleData::default();
+        data1.image = "Image1".to_string();
+        let node1 = ContainerNode {
+            container_name: String::from("Node1"),
+            virtual_container: false,
+            container_assemble_data: data1,
+            children: vec![],
+        };
+
+        let mut data2 = ContainerAssembleData::default();
+        data2.image = "Image2".to_string();
+        let node2 = ContainerNode {
+            container_name: String::from("Node2"),
+            virtual_container: false,
+            container_assemble_data: data2,
+            children: vec![],
+        };
+
+        let mut data3 = ContainerAssembleData::default();
+        data3.image = "Image3".to_string();
+        let node3 = ContainerNode {
+            container_name: String::from("Node3"),
+            virtual_container: false,
+            container_assemble_data: data3,
+            children: vec![node1.clone(), node2.clone()],
+        };
+
+        let children = vec![node1, node2, node3];
+        let mut data4 = ContainerAssembleData::default();
+        data4.image = "Image4".to_string();
+        let node4 = ContainerNode {
+            container_name: String::from("Node4"),
+            virtual_container: false,
+            container_assemble_data: data4,
+            children,
+        };
+
+        let mut data5 = ContainerAssembleData::default();
+        data5.image = "Image5".to_string();
+        let node5 = ContainerNode {
+            container_name: String::from("Node5"),
+            virtual_container: false,
+            container_assemble_data: data5,
+            children: vec![],
+        };
+
+        let trees = vec![node4, node5];
+
+        let result = trees_to_distrobox_assemble(&trees);
+
+        let mut expected_data1 = ContainerAssembleData::default();
+        expected_data1.image = "Image1".to_string();
+        let mut expected_data2 = ContainerAssembleData::default();
+        expected_data2.image = "Image2".to_string();
+        let mut expected_data3 = ContainerAssembleData::default();
+        expected_data3.image = "Image3".to_string();
+        let mut expected_data4 = ContainerAssembleData::default();
+        expected_data4.image = "Image4".to_string();
+        let mut expected_data5 = ContainerAssembleData::default();
+        expected_data5.image = "Image5".to_string();
+
+        let res1 = result.get("Node1").unwrap();
+        let res2 = result.get("Node2").unwrap();
+        let res3 = result.get("Node3").unwrap();
+        let res4 = result.get("Node4").unwrap();
+        let res5 = result.get("Node5").unwrap();
+
+        assert_eq!(res1.image, expected_data1.image);
+        assert_eq!(res2.image, expected_data2.image);
+        assert_eq!(res3.image, expected_data3.image);
+        assert_eq!(res4.image, expected_data4.image);
+        assert_eq!(res5.image, expected_data5.image);
     }
 }

@@ -19,7 +19,7 @@ pub fn parse_os_release(content: &str) -> Option<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::oci::command_helper::{run_container, CommandError};
+    use crate::oci::command_helper::run_container;
 
     #[test]
     fn test_parse_os_release_apk() {

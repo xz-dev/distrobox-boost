@@ -3,11 +3,11 @@ use crate::container_tree::merge::*;
 use crate::distrobox_parser::assemble::ContainerAssembleData;
 use std::collections::HashMap;
 
-pub fn build_container_tree(
+pub fn build_container_trees(
     distrobox_assemble_map: &HashMap<String, ContainerAssembleData>,
 ) -> Vec<ContainerNode> {
     // Parse the content and build the initial tree
-    let trees = distrobox_assemble_to_tree(&distrobox_assemble_map);
+    let trees = distrobox_assemble_to_trees(&distrobox_assemble_map);
 
     // Convert the tree into a map of PackageNodes
     let mut package_map = container_vec_to_package_map(&trees);
@@ -101,7 +101,7 @@ mod tests {
     }
 
     #[test]
-    fn test_build_container_tree() {
+    fn test_build_container_trees() {
         // Create a test map of ContainerAssembleData
         let mut distrobox_assemble_map = HashMap::new();
         distrobox_assemble_map.insert(
@@ -144,7 +144,7 @@ mod tests {
         );
 
         // Call build_container_tree function
-        let trees = build_container_tree(&distrobox_assemble_map);
+        let trees = build_container_trees(&distrobox_assemble_map);
 
         // Check if the returned vector is not empty
         assert!(!trees.is_empty());

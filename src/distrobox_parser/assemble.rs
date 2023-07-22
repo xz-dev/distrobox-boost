@@ -1,7 +1,6 @@
 use crate::distrobox_parser::config::get_distrobox_config;
 use crate::ini_utils::{from_ini, merge_ini, to_ini};
 use std::collections::HashMap;
-use std::fs;
 
 #[derive(Clone)]
 pub struct ContainerAssembleData {
@@ -45,12 +44,6 @@ impl Default for ContainerAssembleData {
             package_manager: None,
         }
     }
-}
-
-pub fn read_distrobox_assemble(file_path: &str) -> HashMap<String, ContainerAssembleData> {
-    let file_content = fs::read_to_string(file_path)
-        .unwrap_or_else(|_| panic!("Something went wrong reading {}", file_path));
-    return parse_distrobox_assemble(&file_content);
 }
 
 pub fn parse_distrobox_assemble(content: &str) -> HashMap<String, ContainerAssembleData> {
@@ -105,6 +98,71 @@ pub fn parse_distrobox_assemble(content: &str) -> HashMap<String, ContainerAssem
             )
         })
         .collect()
+}
+
+pub fn assemble_distrobox_to_str(data: &HashMap<String, ContainerAssembleData>) -> String {
+    let mut ini_data = Vec::new();
+
+    for (name, assemble_data) in data {
+        let mut single_ini_data = Vec::new();
+        if let Some(flags) = &assemble_data.flags {
+            single_ini_data.push(("flags".to_string(), flags.join(" ")));
+        }
+        if let Some(packages) = &assemble_data.packages {
+            single_ini_data.push(("packages".to_string(), packages.join(" ")));
+        }
+        if let Some(home) = &assemble_data.home {
+            single_ini_data.push(("home".to_string(), home.clone()));
+        }
+        single_ini_data.push(("image".to_string(), assemble_data.image.clone()));
+        if let Some(init_hooks) = &assemble_data.init_hooks {
+            for init_hook in init_hooks {
+                single_ini_data.push(("init_hooks".to_string(), init_hook.clone()));
+            }
+        }
+
+        if let Some(pre_init_hooks) = &assemble_data.pre_init_hooks {
+            for pre_init_hook in pre_init_hooks {
+                single_ini_data.push(("pre_init_hooks".to_string(), pre_init_hook.clone()));
+            }
+        }
+
+        if let Some(volumes) = &assemble_data.volumes {
+            let volume_str = volumes
+                .iter()
+                .map(|(k, v)| format!("{}:{}", k, v))
+                .collect::<Vec<_>>()
+                .join(" ");
+            single_ini_data.push(("volumes".to_string(), volume_str));
+        }
+        if let Some(entry) = assemble_data.entry {
+            single_ini_data.push(("entry".to_string(), entry.to_string()));
+        }
+        if let Some(start_now) = assemble_data.start_now {
+            single_ini_data.push(("start_now".to_string(), start_now.to_string()));
+        }
+        if let Some(init) = assemble_data.init {
+            single_ini_data.push(("init".to_string(), init.to_string()));
+        }
+        if let Some(nvidia) = assemble_data.nvidia {
+            single_ini_data.push(("nvidia".to_string(), nvidia.to_string()));
+        }
+        if let Some(pull) = assemble_data.pull {
+            single_ini_data.push(("pull".to_string(), pull.to_string()));
+        }
+        if let Some(root) = assemble_data.root {
+            single_ini_data.push(("root".to_string(), root.to_string()));
+        }
+        if let Some(unshare_ipc) = assemble_data.unshare_ipc {
+            single_ini_data.push(("unshare_ipc".to_string(), unshare_ipc.to_string()));
+        }
+        if let Some(unshare_netns) = assemble_data.unshare_netns {
+            single_ini_data.push(("unshare_netns".to_string(), unshare_netns.to_string()));
+        }
+
+        ini_data.push((name.clone(), single_ini_data));
+    }
+    to_ini(&ini_data)
 }
 
 fn get_value_as_bool_with_default(map: &HashMap<String, Vec<String>>, key: &str) -> Option<bool> {
@@ -197,18 +255,12 @@ image=docker.io/library/debian:10
         let entry1 = &result["section1"];
         assert_eq!(entry1.flags.as_ref().unwrap(), &["--net host"]);
         assert_eq!(entry1.home.as_ref().unwrap(), "/home/user1");
-        assert_eq!(
-            entry1.image,
-            "docker.io/library/ubuntu:20.04"
-        );
+        assert_eq!(entry1.image, "docker.io/library/ubuntu:20.04");
 
         let entry2 = &result["section2"];
         assert_eq!(entry2.flags.as_ref().unwrap(), &["\"--net\" \"bridge\""]);
         assert_eq!(entry2.home.as_ref().unwrap(), "/home/user2");
-        assert_eq!(
-            entry2.image,
-            "docker.io/library/debian:10"
-        );
+        assert_eq!(entry2.image, "docker.io/library/debian:10");
     }
 
     #[test]
@@ -252,5 +304,72 @@ home=/home/test_user
         let result = parse_distrobox_assemble(content);
 
         assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn test_assemble_distrobox_to_str_normal() {
+        let mut data = HashMap::new();
+        data.insert("foo".to_string(), ContainerAssembleData::default());
+
+        let result = assemble_distrobox_to_str(&data);
+
+        assert!(result.contains("[foo]"));
+    }
+
+    #[test]
+    fn test_assemble_distrobox_to_str_with_fields() {
+        let mut data = HashMap::new();
+
+        let mut foo = ContainerAssembleData::default();
+        foo.flags = Some(vec!["--net".to_string()]);
+        foo.packages = Some(vec!["vim".to_string()]);
+
+        data.insert("foo".to_string(), foo);
+
+        let result = assemble_distrobox_to_str(&data);
+
+        assert!(result.contains("[foo]"));
+        assert!(result.contains("flags=--net"));
+        assert!(result.contains("packages=vim"));
+    }
+    #[test]
+    fn test_assemble_distrobox_to_str_multiple_sections() {
+        let mut data = HashMap::new();
+
+        data.insert("foo".to_string(), ContainerAssembleData::default());
+        data.insert("bar".to_string(), ContainerAssembleData::default());
+
+        let result = assemble_distrobox_to_str(&data);
+
+        assert!(result.contains("[foo]"));
+        assert!(result.contains("[bar]"));
+    }
+
+    #[test]
+    fn test_assemble_distrobox_to_str_with_pre_init_hooks() {
+        let mut data = HashMap::new();
+
+        let mut foo = ContainerAssembleData::default();
+        foo.pre_init_hooks = Some(vec![
+            r#"do something 'funny' here"#.to_string(),
+            r#"echo 'haha'"#.to_string(),
+        ]);
+
+        data.insert("foo".to_string(), foo);
+
+        let result = assemble_distrobox_to_str(&data);
+
+        assert!(result.contains("[foo]"));
+        assert!(result.contains(r#"pre_init_hooks=do something 'funny' here"#));
+        assert!(result.contains(r#"pre_init_hooks=echo 'haha'"#));
+    }
+
+    #[test]
+    fn test_assemble_distrobox_to_str_empty() {
+        let data: HashMap<String, ContainerAssembleData> = HashMap::new();
+
+        let result = assemble_distrobox_to_str(&data);
+
+        assert_eq!(result, "");
     }
 }

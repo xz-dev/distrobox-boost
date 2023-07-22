@@ -52,7 +52,7 @@ pub fn from_ini(input: &str) -> Vec<(String, Vec<(String, String)>)> {
     result
 }
 
-pub fn to_ini(data: &[(String, Vec<(String, String)>)]) -> String {
+pub fn to_ini(data: &Vec<(String, Vec<(String, String)>)>) -> String {
     let mut output = String::new();
 
     for (section_name, section_data) in data.iter() {
