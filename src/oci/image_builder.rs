@@ -16,7 +16,10 @@ pub fn build_image(
     let distro_info = parse_os_release(&stdout).unwrap();
     let package_manager = get_package_manager(&distro_info.0, &distro_info.1);
 
-    let updated_image_name = format!("distrobox-{}-db-updated", image_name);
+    let updated_image_name = format!(
+        "distrobox-{}-db-updated",
+        image_name.splitn(2, ":").next().unwrap()
+    );
     let cmd = generate_update_command(&package_manager);
     println!("Update image: {}", updated_image_name);
     process_container(ContainerData {
@@ -113,7 +116,7 @@ mod tests {
     fn test_build_image_valid() {
         let container_runner = &get_container_manager();
         let image_name = "test_image";
-        let base_image = "archlinux";
+        let base_image = "archlinux:latest";
         let packages = vec!["fish".to_string(), "htop".to_string()];
 
         let result = build_image(container_runner, image_name, base_image, &packages).unwrap();

@@ -109,7 +109,9 @@ pub fn assemble_distrobox_to_str(data: &HashMap<String, ContainerAssembleData>) 
             single_ini_data.push(("flags".to_string(), flags.join(" ")));
         }
         if let Some(packages) = &assemble_data.packages {
-            single_ini_data.push(("packages".to_string(), packages.join(" ")));
+            if !packages.is_empty() {
+                single_ini_data.push(("packages".to_string(), packages.join(" ")));
+            }
         }
         if let Some(home) = &assemble_data.home {
             single_ini_data.push(("home".to_string(), home.clone()));

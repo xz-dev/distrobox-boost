@@ -104,9 +104,12 @@ pub fn trees_to_distrobox_assemble(
         tree: &ContainerNode,
         distrobox_assemble_data_map: &mut HashMap<String, ContainerAssembleData>,
     ) {
-        let container_name = &tree.container_name;
-        let container_assemble_data = &tree.container_assemble_data;
-        distrobox_assemble_data_map.insert(container_name.clone(), container_assemble_data.clone());
+        if !tree.virtual_container {
+            let container_name = &tree.container_name;
+            let container_assemble_data = &tree.container_assemble_data;
+            distrobox_assemble_data_map
+                .insert(container_name.clone(), container_assemble_data.clone());
+        }
         for child in &tree.children {
             tree_to_distobox_assemble(child, distrobox_assemble_data_map);
         }
@@ -200,13 +203,21 @@ mod tests {
             children,
         };
 
+        let mut data6 = ContainerAssembleData::default();
+        data6.image = "Image6".to_string();
+        let node6 = ContainerNode {
+            container_name: String::from("Node6"),
+            virtual_container: false,
+            container_assemble_data: data6,
+            children: vec![],
+        };
         let mut data5 = ContainerAssembleData::default();
         data5.image = "Image5".to_string();
         let node5 = ContainerNode {
             container_name: String::from("Node5"),
-            virtual_container: false,
+            virtual_container: true,
             container_assemble_data: data5,
-            children: vec![],
+            children: vec![node6],
         };
 
         let trees = vec![node4, node5];
@@ -221,19 +232,20 @@ mod tests {
         expected_data3.image = "Image3".to_string();
         let mut expected_data4 = ContainerAssembleData::default();
         expected_data4.image = "Image4".to_string();
-        let mut expected_data5 = ContainerAssembleData::default();
-        expected_data5.image = "Image5".to_string();
+        let mut expected_data6 = ContainerAssembleData::default();
+        expected_data6.image = "Image6".to_string();
 
+        assert_eq!(result.len(), 5);
         let res1 = result.get("Node1").unwrap();
         let res2 = result.get("Node2").unwrap();
         let res3 = result.get("Node3").unwrap();
         let res4 = result.get("Node4").unwrap();
-        let res5 = result.get("Node5").unwrap();
+        let res6 = result.get("Node6").unwrap();
 
         assert_eq!(res1.image, expected_data1.image);
         assert_eq!(res2.image, expected_data2.image);
         assert_eq!(res3.image, expected_data3.image);
         assert_eq!(res4.image, expected_data4.image);
-        assert_eq!(res5.image, expected_data5.image);
+        assert_eq!(res6.image, expected_data6.image);
     }
 }
