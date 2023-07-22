@@ -109,7 +109,7 @@ fn run_command(command_name: &str, args: &[&str]) -> Result<(String, String), Co
         println!("Command executed successfully");
         Ok((stdout, stderr))
     } else {
-        println!("Command failed");
+        println!("Command failed at {} {}", command_name, args.join(" "));
         Err(CommandError {
             stdout,
             stderr,

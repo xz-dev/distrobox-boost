@@ -28,11 +28,42 @@ pub fn from_ini(input: &str) -> Vec<(String, Vec<(String, String)>)> {
     let mut current_section = String::new();
 
     for line in input.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with(';') || line.starts_with('#') {
-            continue;
+        fn find_comment(line: &str) -> Option<usize> {
+            let mut in_single_quote = false;
+            let mut in_double_quote = false;
+            let mut prev_char = '\0';
+
+            for (i, c) in line.chars().enumerate() {
+                match c {
+                    '#' if !in_single_quote && !in_double_quote && prev_char != '\\' => {
+                        return Some(i)
+                    }
+                    ';' if !in_single_quote && !in_double_quote && prev_char != '\\' => {
+                        return Some(i)
+                    }
+                    '\'' if !in_double_quote && prev_char != '\\' => {
+                        in_single_quote = !in_single_quote
+                    }
+                    '"' if !in_single_quote && prev_char != '\\' => {
+                        in_double_quote = !in_double_quote
+                    }
+                    _ => (),
+                }
+                prev_char = c;
+            }
+            None
         }
 
+        let line = match find_comment(line) {
+            Some(pos) => &line[..pos],
+            None => line,
+        };
+
+        let line = line.trim();
+
+        if line.is_empty() {
+            continue;
+        }
         if line.starts_with('[') && line.ends_with(']') {
             current_section = line[1..line.len() - 1].to_string();
             result.push((current_section.clone(), Vec::new()));
@@ -96,8 +127,10 @@ start_now=true
 additional_packages=neofetch locales
 additional_packages=git
 
-[another-section]
-key1=value1
+; test
+# onemore test
+[another-section] # inline comment test
+key1=value1 ; another inline comment test
 key2=value2
 
 [empty-section]
