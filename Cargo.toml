@@ -9,3 +9,4 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.3.19", features = ["derive"] }
+lazy_static = "1.4.0"

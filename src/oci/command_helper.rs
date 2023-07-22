@@ -1,4 +1,4 @@
-// run external progamm such as "podman" "docker"
+// run external progamm such as &get_container_manager() "docker"
 
 use std::error::Error;
 use std::fmt;
@@ -121,10 +121,11 @@ fn run_command(command_name: &str, args: &[&str]) -> Result<(String, String), Co
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::get_container_manager;
 
     #[test]
     fn test_valid_command() {
-        let container_runner = "podman";
+        let container_runner = &get_container_manager();
         let name = "test_case_1";
         let image_name = "ubuntu";
         let cmd = "ls";
@@ -137,7 +138,7 @@ mod tests {
 
     #[test]
     fn test_run_container_with_empty_name() {
-        let container_runner = "podman";
+        let container_runner = &get_container_manager();
         let image_name = "ubuntu";
         let cmd = "echo 'Hello, World!'";
 
@@ -154,7 +155,7 @@ mod tests {
 
     #[test]
     fn test_valid_command_with_args() {
-        let container_runner = "podman";
+        let container_runner = &get_container_manager();
         let name = "test_case_2";
         let image_name = "ubuntu";
         let cmd = "ls -la /";
@@ -167,7 +168,7 @@ mod tests {
 
     #[test]
     fn test_empty_command() {
-        let container_runner = "podman";
+        let container_runner = &get_container_manager();
         let name = "test_case_3";
         let image_name = "ubuntu";
         let cmd = "";
@@ -180,7 +181,7 @@ mod tests {
 
     #[test]
     fn test_invalid_command() {
-        let container_runner = "podman";
+        let container_runner = &get_container_manager();
         let name = "test_case_4";
         let image_name = "ubuntu";
         let cmd = "non_existent_command";
@@ -193,7 +194,7 @@ mod tests {
 
     #[test]
     fn test_invalid_image() {
-        let container_runner = "podman";
+        let container_runner = &get_container_manager();
         let name = "test_case_5";
         let image_name = "non_existent_image";
         let cmd = "ls";
@@ -203,7 +204,7 @@ mod tests {
 
     #[test]
     fn test_remove_container() {
-        let container_runner = "podman";
+        let container_runner = &get_container_manager();
         let name = "test_case_remove_1";
         let image_name = "ubuntu";
         let cmd = "ls /";
@@ -217,7 +218,7 @@ mod tests {
 
     #[test]
     fn test_remove_non_existent_container() {
-        let container_runner = "podman";
+        let container_runner = &get_container_manager();
         let name = "test_case_remove_2";
 
         // Try to remove a container that doesn't exist
@@ -226,7 +227,7 @@ mod tests {
 
     #[test]
     fn test_commit_container_with_file() {
-        let container_runner = "podman"; // Or "docker"
+        let container_runner = &get_container_manager();
         let container_name = "test_commit_with_file";
         let container2_name = "test_run_with_file";
         let image_name = "ubuntu";
@@ -271,7 +272,7 @@ mod tests {
 
     #[test]
     fn test_commit_invalid_container() {
-        let container_runner = "podman";
+        let container_runner = &get_container_manager();
         let name = "invalid_container";
         let image_name = "new_image_from_invalid_container";
 
@@ -285,7 +286,7 @@ mod tests {
 
     #[test]
     fn test_check_container_exists() {
-        let container_runner = "podman";
+        let container_runner = &get_container_manager();
         let name = "test_check_container_exists";
         let _ = remove_container(container_runner, name);
 
@@ -307,7 +308,7 @@ mod tests {
 
     #[test]
     fn test_check_image_exists() {
-        let container_runner = "podman";
+        let container_runner = &get_container_manager();
 
         // Non-existent image
         let image_name = "non_existent_image";

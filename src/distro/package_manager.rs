@@ -47,6 +47,7 @@ pub fn get_package_manager(distro_id: &str, _distro_version: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::get_container_manager;
     use crate::distro::os_info::parse_os_release;
     use crate::oci::command_helper::run_container;
 
@@ -102,7 +103,7 @@ mod tests {
         #[test]
         fn $name() {
             let (image, package_manager) = $value;
-            test_package_installation_single_image("podman", image, package_manager);
+            test_package_installation_single_image(&get_container_manager(), image, package_manager);
         }
     )*
     }
@@ -147,7 +148,7 @@ mod tests {
         #[test]
         fn $name() {
             let (image, package_manager) = $value;
-            test_get_package_manager_real_image("podman", image, package_manager);
+            test_get_package_manager_real_image(&get_container_manager(), image, package_manager);
         }
     )*
     }

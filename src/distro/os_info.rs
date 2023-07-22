@@ -19,47 +19,32 @@ pub fn parse_os_release(content: &str) -> Option<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::get_container_manager;
     use crate::oci::command_helper::run_container;
 
-    #[test]
-    fn test_parse_os_release_apk() {
-        test_parse_os_release("podman", "alpine");
+    macro_rules! create_test {
+        ($test_name:ident, $image_name:expr) => {
+            #[test]
+            fn $test_name() {
+                test_parse_os_release(&get_container_manager(), $image_name);
+            }
+        };
     }
 
-    #[test]
-    fn test_parse_os_release_pacman() {
-        test_parse_os_release("podman", "archlinux");
-    }
-
-    #[test]
-    fn test_parse_os_release_yum() {
-        test_parse_os_release("podman", "centos");
-    }
-
-    #[test]
-    fn test_parse_os_release_yum_rockylinux() {
-        test_parse_os_release("podman", "rockylinux:9");
-    }
-
-    #[test]
-    fn test_parse_os_release_apt() {
-        test_parse_os_release("podman", "debian");
-    }
-
-    #[test]
-    fn test_parse_os_release_dnf() {
-        test_parse_os_release("podman", "registry.fedoraproject.org/fedora-toolbox");
-    }
-
-    #[test]
-    fn test_parse_os_release_zypper() {
-        test_parse_os_release("podman", "registry.opensuse.org/opensuse/distrobox:latest");
-    }
-
-    #[test]
-    fn test_parse_os_release_apt_ubuntu() {
-        test_parse_os_release("podman", "ubuntu");
-    }
+    create_test!(test_parse_os_release_apk, "alpine");
+    create_test!(test_parse_os_release_pacman, "archlinux");
+    create_test!(test_parse_os_release_yum, "centos");
+    create_test!(test_parse_os_release_yum_rockylinux, "rockylinux:9");
+    create_test!(test_parse_os_release_apt, "debian");
+    create_test!(
+        test_parse_os_release_dnf,
+        "registry.fedoraproject.org/fedora-toolbox"
+    );
+    create_test!(
+        test_parse_os_release_zypper,
+        "registry.opensuse.org/opensuse/distrobox:latest"
+    );
+    create_test!(test_parse_os_release_apt_ubuntu, "ubuntu");
 
     fn test_parse_os_release(container_runner: &str, image_name: &str) {
         let (stdout, _stderr) =
