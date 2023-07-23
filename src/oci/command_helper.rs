@@ -1,5 +1,7 @@
 // run external progamm such as &get_container_manager() "docker"
 
+use serde_json::Value;
+use std::collections::HashSet;
 use std::error::Error;
 use std::fmt;
 use std::io;
@@ -57,18 +59,65 @@ pub fn remove_container(
 
 pub fn commit_container(
     container_runner: &str,
-    name: &str,
+    comtainer_name: &str,
     image_name: &str,
+    instructions: &[&str],
 ) -> Result<(String, String), CommandError> {
-    let args = ["commit", name, image_name];
+    let mut args = vec!["commit", comtainer_name, image_name];
+    for instruction in instructions {
+        args.push("-c");
+        args.push(instruction);
+    }
     let (stdout, stderr) = run_command(container_runner, &args)?;
     Ok((stdout, stderr))
 }
 
-pub fn check_image_exists(container_runner: &str, image_name: &str) -> Result<bool, CommandError> {
-    let args = vec!["images", "-q", image_name];
+pub fn find_images(container_runner: &str, filters: &[&str]) -> Result<Vec<String>, CommandError> {
+    let mut result = Vec::new();
+    for filter in filters {
+        let args = vec!["images", "-q", "--filter", filter];
+        let (stdout, _stderr) = run_command(container_runner, &args)?;
+        let images: HashSet<String> = stdout
+            .split("\n")
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect();
+        result.push(images);
+    }
+
+    let intersection = result
+        .into_iter()
+        .fold(None, |acc, set| match acc {
+            None => Some(set),
+            Some(acc) => Some(&acc & &set),
+        })
+        .unwrap_or_else(HashSet::new);
+
+    Ok(intersection.into_iter().collect())
+}
+
+pub fn get_image_name(
+    container_runner: &str,
+    image_id: &str,
+) -> Result<Option<Vec<String>>, CommandError> {
+    let mut args = vec!["inspect", "--format", "{{json .RepoTags}}"];
+    args.push(image_id);
     let (stdout, _stderr) = run_command(container_runner, &args)?;
-    Ok(!stdout.trim().is_empty())
+    if !stdout.is_empty() {
+        let v: Value = serde_json::from_str(&stdout).expect("get_image_name: json parse error");
+        if let Some(array) = v.as_array() {
+            let mut names = Vec::new();
+            for item in array {
+                if let Some(name) = item.as_str() {
+                    names.push(name.to_string());
+                }
+            }
+            if !names.is_empty() {
+                return Ok(Some(names));
+            }
+        }
+    }
+    Ok(None)
 }
 
 pub fn check_container_exists(
@@ -79,6 +128,16 @@ pub fn check_container_exists(
     let args = vec!["ps", "-aq", "-f", &filter_string];
     let (stdout, _stderr) = run_command(container_runner, &args)?;
     Ok(!stdout.trim().is_empty())
+}
+
+pub fn tag_image(
+    container_runner: &str,
+    name: &str,
+    new_name: &str,
+) -> Result<(String, String), CommandError> {
+    let args = ["tag", name, new_name];
+    let (stdout, stderr) = run_command(container_runner, &args)?;
+    Ok((stdout, stderr))
 }
 
 fn run_command(command_name: &str, args: &[&str]) -> Result<(String, String), CommandError> {
@@ -102,9 +161,6 @@ fn run_command(command_name: &str, args: &[&str]) -> Result<(String, String), Co
     let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
 
-    println!("stdout: {}", stdout);
-    println!("stderr: {}", stderr);
-
     if output.status.success() {
         println!("Command executed successfully");
         Ok((stdout, stderr))
@@ -117,7 +173,6 @@ fn run_command(command_name: &str, args: &[&str]) -> Result<(String, String), Co
         })
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -239,7 +294,7 @@ mod tests {
 
         // Commit the container to a new image
         let new_image_name = "test_commit_image_with_file";
-        let result = commit_container(container_runner, container_name, new_image_name);
+        let result = commit_container(container_runner, container_name, new_image_name, &vec![]);
         assert!(result.is_ok(), "Commit failed: {:?}", result.err());
 
         // Run a new container with the new image and check if the file exists
@@ -276,7 +331,7 @@ mod tests {
         let name = "invalid_container";
         let image_name = "new_image_from_invalid_container";
 
-        let result = commit_container(container_runner, name, image_name);
+        let result = commit_container(container_runner, name, image_name, &vec![]);
 
         assert!(
             result.is_err(),
@@ -301,26 +356,6 @@ mod tests {
         let _ = run_container(container_runner, name, image_name, cmd);
         let result = check_container_exists(container_runner, name);
         let _ = remove_container(container_runner, name);
-
-        assert!(result.is_ok());
-        assert_eq!(true, result.unwrap());
-    }
-
-    #[test]
-    fn test_check_image_exists() {
-        let container_runner = &get_container_manager();
-
-        // Non-existent image
-        let image_name = "non_existent_image";
-        let _ = remove_container(container_runner, image_name);
-        let result = check_image_exists(container_runner, image_name);
-        assert!(result.is_ok());
-        assert_eq!(false, result.unwrap());
-
-        // Existent image
-        let image_name = "ubuntu";
-        let _ = run_container(container_runner, "", image_name, "");
-        let result = check_image_exists(container_runner, image_name);
 
         assert!(result.is_ok());
         assert_eq!(true, result.unwrap());

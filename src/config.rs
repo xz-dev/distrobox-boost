@@ -2,6 +2,18 @@ use crate::distrobox_parser::config::get_distrobox_config;
 
 use std::process::Command;
 
+static mut DISTROBOX_MODE: bool = false;
+
+pub fn get_distrobox_mode() -> bool {
+    unsafe { DISTROBOX_MODE }
+}
+
+pub fn set_distrobox_mode(mode: bool) {
+    unsafe {
+        DISTROBOX_MODE = mode;
+    }
+}
+
 fn command_exists(command: &str) -> bool {
     let os = std::env::consts::OS;
     let output = if os == "windows" {

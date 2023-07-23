@@ -175,17 +175,22 @@ key2=value2
     fn test_to_ini() {
         let data = sample_ini_data();
         let written_content = to_ini(&data);
-        let expected_content = sample_ini_content();
 
         // Filter out empty lines from written_content and expected_content
         let filtered_written_lines: Vec<_> = written_content
             .lines()
             .filter(|line| !line.trim().is_empty())
             .collect();
-        let filtered_expected_lines: Vec<_> = expected_content
-            .lines()
-            .filter(|line| !line.trim().is_empty())
-            .collect();
+        let filtered_expected_lines = [
+            "[riscv64-debian]",
+            "start_now=true",
+            "additional_packages=neofetch locales",
+            "additional_packages=git",
+            "[another-section]",
+            "key1=value1",
+            "key2=value2",
+            "[empty-section]",
+        ];
 
         assert_eq!(
             filtered_written_lines, filtered_expected_lines,
