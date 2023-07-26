@@ -1,6 +1,5 @@
 // run external progamm such as &get_container_manager() "docker"
 
-use serde_json::Value;
 use std::collections::HashSet;
 use std::error::Error;
 use std::fmt;
@@ -20,7 +19,6 @@ impl fmt::Display for CommandError {
 }
 impl Error for CommandError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        // 泛型错误，没有记录其内部原因。
         None
     }
 }
@@ -94,30 +92,6 @@ pub fn find_images(container_runner: &str, filters: &[&str]) -> Result<Vec<Strin
         .unwrap_or_else(HashSet::new);
 
     Ok(intersection.into_iter().collect())
-}
-
-pub fn get_image_name(
-    container_runner: &str,
-    image_id: &str,
-) -> Result<Option<Vec<String>>, CommandError> {
-    let mut args = vec!["inspect", "--format", "{{json .RepoTags}}"];
-    args.push(image_id);
-    let (stdout, _stderr) = run_command(container_runner, &args)?;
-    if !stdout.is_empty() {
-        let v: Value = serde_json::from_str(&stdout).expect("get_image_name: json parse error");
-        if let Some(array) = v.as_array() {
-            let mut names = Vec::new();
-            for item in array {
-                if let Some(name) = item.as_str() {
-                    names.push(name.to_string());
-                }
-            }
-            if !names.is_empty() {
-                return Ok(Some(names));
-            }
-        }
-    }
-    Ok(None)
 }
 
 pub fn check_container_exists(

@@ -14,7 +14,7 @@ pub fn generate_install_command(package_manager: &str, packages: &[&str]) -> Str
     match package_manager {
         "apk" => format!("apk add --no-cache {}", packages_str),
         "pacman" => format!("pacman -S --needed --noconfirm {}", packages_str),
-        "yum" => format!("yum -y install {}", packages_str),
+        "yum" => format!("yum -y install --nobest {}", packages_str),
         "apt" => format!("apt-get install -y {}", packages_str),
         "dnf" => format!("dnf -y install {}", packages_str),
         "zypper" => format!("zypper --non-interactive install {}", packages_str),
