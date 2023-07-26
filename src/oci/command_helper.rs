@@ -66,6 +66,9 @@ pub fn commit_container(
         args.push("-c");
         args.push(instruction);
     }
+    // clean CMD, commit will save the CMD from the container
+    args.push("-c");
+    args.push("CMD []");
     let (stdout, stderr) = run_command(container_runner, &args)?;
     Ok((stdout, stderr))
 }

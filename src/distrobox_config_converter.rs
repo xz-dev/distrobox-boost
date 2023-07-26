@@ -21,6 +21,7 @@ fn build_image_by_tree(container_runner: &str, tree: &ContainerNode) -> HashMap<
                 .as_ref()
                 .unwrap_or(&empty_vec);
             let new_image = format!("distrobox-{}", &image);
+            println!("Build container name: {} to {}", &tree.container_name, &new_image);
             build_image(container_runner, &new_image, &image, packages).unwrap();
             image_map.insert(image.clone(), new_image);
         }
