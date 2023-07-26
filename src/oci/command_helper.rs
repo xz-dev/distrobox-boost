@@ -136,7 +136,7 @@ fn run_command(command_name: &str, args: &[&str]) -> Result<(String, String), Co
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
 
     if output.status.success() {
-        println!("Command executed successfully");
+        println!("Command succeed at {} {}", command_name, args.join(" "));
         Ok((stdout, stderr))
     } else {
         println!("Command failed at {} {}", command_name, args.join(" "));
