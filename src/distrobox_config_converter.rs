@@ -20,8 +20,9 @@ fn build_image_by_tree(container_runner: &str, tree: &ContainerNode) -> HashMap<
                 .packages
                 .as_ref()
                 .unwrap_or(&empty_vec);
-            let new_image = build_image(container_runner, &image, &image, packages).unwrap();
-            image_map.insert(image.clone(), new_image.clone());
+            let new_image = format!("distrobox-{}", &image);
+            build_image(container_runner, &new_image, &image, packages).unwrap();
+            image_map.insert(image.clone(), new_image);
         }
         for child in &tree.children {
             tree_to_image_map(container_runner, child, image_map);
