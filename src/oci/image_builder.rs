@@ -19,7 +19,7 @@ pub fn build_image(
     let (stdout, _stderr) = run_container(container_runner, "", base_image, &cmd)?;
     let distro_info = parse_os_release(&stdout).unwrap();
     let package_manager = get_package_manager(&distro_info.0, &distro_info.1);
-    let slim_image_name = target_image.replace(":", "_");
+    let slim_image_name = target_image.replace(":", "-").replace("/", "-");
 
     let cmd = generate_update_command(&package_manager);
     println!("Update image: {}", slim_image_name);

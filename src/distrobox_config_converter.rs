@@ -43,6 +43,7 @@ pub fn build_distrobox_assemble_data(
         let image = &tree.container_assemble_data.image;
         if image_map.contains_key(image) {
             tree.container_assemble_data.image = image_map[image].clone();
+            tree.container_assemble_data.pull = Some(false);
         }
         for child in &mut tree.children {
             change_tree_image(child, image_map);
