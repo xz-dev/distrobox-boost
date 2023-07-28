@@ -33,26 +33,25 @@ struct Args {
     input: String,
 
     #[clap(short, long)]
+    output: Option<String>,
+
+    #[clap(short, long)]
     ext_pkg: Option<String>,
 
     #[clap(short, long)]
     non_distrobox: Option<bool>,
-
-    #[clap(short, long)]
-    output: Option<String>,
 }
 
 fn main() {
     let args = Args::parse();
-
-    let content = std::fs::read_to_string(&args.input).unwrap();
-
-    let result = build(&content, args.ext_pkg);
-
     set_distrobox_mode(match args.non_distrobox {
         Some(true) => false,
         _ => true,
     });
+
+    let content = std::fs::read_to_string(&args.input).unwrap();
+
+    let result = build(&content, args.ext_pkg);
 
     match args.output {
         Some(path) => std::fs::write(&path, result).unwrap(),
