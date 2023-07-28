@@ -2,7 +2,7 @@ use crate::distrobox_parser::config::get_distrobox_config;
 
 use std::process::Command;
 
-static mut DISTROBOX_MODE: bool = false;
+static mut DISTROBOX_MODE: bool = true;
 
 pub fn get_distrobox_mode() -> bool {
     unsafe { DISTROBOX_MODE }

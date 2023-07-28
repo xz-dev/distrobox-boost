@@ -61,8 +61,8 @@ pub fn parse_distrobox_assemble(content: &str) -> HashMap<String, ContainerAssem
             (
                 name,
                 ContainerAssembleData {
-                    flags: entry.get("flags").map(|i| i.clone()),
-                    packages: entry.get("packages").map(|i| {
+                    flags: entry.get("additional_flags").map(|i| i.clone()),
+                    packages: entry.get("additional_packages").map(|i| {
                         i.iter()
                             .flat_map(|pkg_str| pkg_str.split_whitespace())
                             .map(|pkg| pkg.to_string())
@@ -106,11 +106,11 @@ pub fn assemble_distrobox_to_str(data: &HashMap<String, ContainerAssembleData>) 
     for (name, assemble_data) in data {
         let mut single_ini_data = Vec::new();
         if let Some(flags) = &assemble_data.flags {
-            single_ini_data.push(("flags".to_string(), flags.join(" ")));
+            single_ini_data.push(("additional_flags".to_string(), flags.join(" ")));
         }
         if let Some(packages) = &assemble_data.packages {
             if !packages.is_empty() {
-                single_ini_data.push(("packages".to_string(), packages.join(" ")));
+                single_ini_data.push(("additional_packages".to_string(), packages.join(" ")));
             }
         }
         if let Some(home) = &assemble_data.home {
@@ -180,8 +180,8 @@ mod tests {
     fn test_parse_distrobox_assemble_single_section() {
         let content = r#"
 [test_section]
-flags="--net host"
-packages="vim curl"
+additional_flags="--net host"
+additional_packages="vim curl"
 home=/home/test_user
 image=docker.io/library/ubuntu:20.04
 init_hooks=hook1
@@ -238,12 +238,12 @@ unshare_netns=false
     fn test_parse_distrobox_assemble_multiple_sections() {
         let content = r#"
 [section1]
-flags=--net host
+additional_flags=--net host
 home=/home/user1
 image=docker.io/library/ubuntu:20.04
 
 [section2]
-flags="--net" "bridge"
+additional_flags="--net" "bridge"
 home=/home/user2
 image=docker.io/library/debian:10
 "#;
@@ -269,9 +269,9 @@ image=docker.io/library/debian:10
     fn test_parse_distrobox_assemble_missing_values() {
         let content = r#"
 [test_section]
-flags=--net host
-packages=vim curl
-packages="nano wget"
+additional_flags=--net host
+additional_packages=vim curl
+additional_packages="nano wget"
 home=/home/test_user
 "#;
 

@@ -10,13 +10,12 @@ use crate::config::*;
 use crate::distrobox_config_converter::build_distrobox_assemble_data;
 use crate::distrobox_parser::assemble::{assemble_distrobox_to_str, parse_distrobox_assemble};
 
-fn build(assemble_file_content: &str, shell_program: Option<String>) -> String {
+fn build(assemble_file_content: &str, extra_packages: Option<String>) -> String {
     let mut distrobox_assemble_data = parse_distrobox_assemble(assemble_file_content);
     for value in distrobox_assemble_data.values_mut() {
-        if let Some(ref mut v) = value.packages {
-            if shell_program.is_some() {
-                v.push(shell_program.as_ref().unwrap().clone());
-            }
+        if let Some(ref pkgs) = extra_packages {
+            let packages = value.packages.get_or_insert(Vec::new());
+            packages.push(pkgs.clone());
         }
     }
     let container_manager = get_container_manager();
@@ -34,10 +33,10 @@ struct Args {
     input: String,
 
     #[clap(short, long)]
-    shell: Option<String>,
+    ext_pkg: Option<String>,
 
     #[clap(short, long)]
-    distrobox: Option<bool>,
+    non_distrobox: Option<bool>,
 
     #[clap(short, long)]
     output: Option<String>,
@@ -48,11 +47,11 @@ fn main() {
 
     let content = std::fs::read_to_string(&args.input).unwrap();
 
-    let result = build(&content, args.shell);
+    let result = build(&content, args.ext_pkg);
 
-    set_distrobox_mode(match args.distrobox {
-        Some(true) => true,
-        _ => false,
+    set_distrobox_mode(match args.non_distrobox {
+        Some(true) => false,
+        _ => true,
     });
 
     match args.output {
