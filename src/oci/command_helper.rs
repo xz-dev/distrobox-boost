@@ -29,12 +29,23 @@ pub fn run_container(
     image_name: &str,
     cmd: &str,
 ) -> Result<(String, String), CommandError> {
+    run_container_with_args(container_runner, name, image_name, cmd, &[])
+}
+
+pub fn run_container_with_args(
+    container_runner: &str,
+    name: &str,
+    image_name: &str,
+    cmd: &str,
+    extra_args: &[&str],
+) -> Result<(String, String), CommandError> {
     let mut args = vec!["run", "--user", "root"];
     if !name.is_empty() {
         args.extend_from_slice(&["--name", name]);
     } else {
         args.push("--rm");
     }
+    args.extend_from_slice(extra_args);
     if !cmd.is_empty() {
         println!("Using sh -c to run command: {}", cmd);
         args.extend_from_slice(&["--entrypoint", "sh", image_name, "-c", cmd]);
@@ -42,6 +53,24 @@ pub fn run_container(
         args.push(image_name);
     }
 
+    let (stdout, stderr) = run_command(container_runner, &args)?;
+    Ok((stdout, stderr))
+}
+
+pub fn stop_container(
+    container_runner: &str,
+    name: &str,
+) -> Result<(String, String), CommandError> {
+    stop_container_with_args(container_runner, name, &[])
+}
+
+pub fn stop_container_with_args(
+    container_runner: &str,
+    name: &str,
+    extra_args: &[&str],
+) -> Result<(String, String), CommandError> {
+    let mut args = vec!["stop", name];
+    args.extend_from_slice(extra_args);
     let (stdout, stderr) = run_command(container_runner, &args)?;
     Ok((stdout, stderr))
 }
@@ -150,6 +179,26 @@ fn run_command(command_name: &str, args: &[&str]) -> Result<(String, String), Co
         })
     }
 }
+
+pub fn pin_image(container_runner: &str, image_name: &str) -> Result<String, CommandError> {
+    let name = format!("pin-{}", image_name.replace(":", "-").replace("/", "-"));
+    run_container_with_args(
+        container_runner,
+        &name,
+        image_name,
+        "tail -f /dev/null",
+        &["-d"],
+    )?;
+    Ok(name)
+}
+
+pub fn unpin_image(container_runner: &str, image_name: &str) -> Result<String, CommandError> {
+    let name = format!("pin-{}", image_name.replace(":", "-").replace("/", "-"));
+    let _ = stop_container_with_args(container_runner, &name, &["-t", "0"]);
+    remove_container(container_runner, &name)?;
+    Ok(name)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -336,5 +385,71 @@ mod tests {
 
         assert!(result.is_ok());
         assert_eq!(true, result.unwrap());
+    }
+
+    #[test]
+    fn test_pin_image() {
+        let container_runner = &get_container_manager();
+        let _ = unpin_image(container_runner, "ubuntu:latest");
+        // Attempt to pin the ubuntu image
+        let result = pin_image(container_runner, "ubuntu:latest");
+        assert!(result.is_ok(), "Failed to pin the ubuntu image");
+
+        // Attempt to pin the same image again, expect an error
+        let result = pin_image(container_runner, "ubuntu:latest");
+        assert!(
+            result.is_err(),
+            "Should fail when attempting to pin the same image twice"
+        );
+        let _ = unpin_image(container_runner, "ubuntu:latest");
+    }
+    #[test]
+    fn test_pin_image_nonexistent() {
+        let container_runner = &get_container_manager();
+        // Attempt to pin an image that does not exist, expect an error
+        let result = pin_image(container_runner, "localhost/nonexistent1");
+        assert!(
+            result.is_err(),
+            "Should fail when attempting to pin a nonexistent image"
+        );
+    }
+
+    #[test]
+    fn test_unpin_image() {
+        let container_runner = &get_container_manager();
+        let _ = unpin_image(container_runner, "ubuntu");
+        // Pin the ubuntu image
+        let _ = pin_image(container_runner, "ubuntu");
+        // Unpin the pinned image
+        let unpin_result = unpin_image(container_runner, "ubuntu");
+        assert!(unpin_result.is_ok(), "Failed to unpin the ubuntu image");
+    }
+    #[test]
+    fn test_unpin_image_nonexistent() {
+        let container_runner = &get_container_manager();
+        // Attempt to unpin an image that does not exist, expect an error
+        let result = unpin_image(container_runner, "localhost/nonexistent1");
+        assert!(
+            result.is_err(),
+            "Should fail when attempting to unpin a nonexistent image"
+        );
+    }
+    #[test]
+    fn test_unpin_image_stopped() {
+        let container_runner = &get_container_manager();
+        let image_name = "alpine"; // use different image than test_unpin_image
+        let _ = unpin_image(container_runner, image_name);
+        // Pin the ubuntu image
+        let _ = pin_image(container_runner, image_name);
+
+        // Stop the pinned container
+        let _ = stop_container_with_args(container_runner, &format!("pin-{}", image_name), &["-t", "0"]);
+
+        // Attempt to unpin the stopped container, expect success
+        let result = unpin_image(container_runner, image_name);
+        assert!(
+            result.is_ok(),
+            "Failed to unpin the stopped ubuntu container"
+        );
     }
 }
