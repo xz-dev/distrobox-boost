@@ -42,6 +42,9 @@ struct Args {
     output: Option<String>,
 
     #[clap(short, long)]
+    output_dir: Option<String>,
+
+    #[clap(short, long)]
     ext_pkg: Option<String>,
 
     #[clap(short, long)]
@@ -66,9 +69,24 @@ fn main() {
     let new_distrobox_assemble_data = build(&distrobox_assemble_data, args.ext_pkg);
     let file_content = assemble_distrobox_to_str(&new_distrobox_assemble_data);
 
-    match args.output {
-        Some(path) => std::fs::write(&path, file_content).unwrap(),
-        None => println!("{}", file_content),
+    if args.output.is_none() && args.output_dir.is_none() {
+        println!("{}", file_content);
+        return;
+    }
+    if let Some(output) = args.output {
+        std::fs::write(&output, &file_content).unwrap();
+    }
+    if let Some(output_dir) = args.output_dir {
+        let output_dir_path = std::path::PathBuf::from(output_dir);
+        for name in new_distrobox_assemble_data.keys() {
+            let mut output_path = output_dir_path.clone();
+            output_path.push(name);
+            output_path.set_extension("ini");
+            let mut data = HashMap::new();
+            data.insert(name.clone(), new_distrobox_assemble_data.get(name).unwrap().clone());
+            let file_content = assemble_distrobox_to_str(&data);
+            std::fs::write(&output_path, &file_content).unwrap();
+        }
     }
 
     if args.pin {
