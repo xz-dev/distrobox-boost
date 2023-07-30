@@ -5,7 +5,7 @@ use crate::distro::package_manager::*;
 use crate::oci::command_helper::*;
 use crate::utils::mutex_lock::*;
 use lazy_static::lazy_static;
-use std::collections::hash_map::DefaultHasher;
+use std::collections::hash_map::{DefaultHasher, HashMap};
 use std::hash::{Hash, Hasher};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -21,24 +21,62 @@ pub fn build_image(
     let package_manager = get_package_manager(&distro_info.0, &distro_info.1);
     let slim_image_name = target_image.replace(":", "-").replace("/", "-");
 
+    let mut filter_map = HashMap::new();
+    filter_map.insert("image".to_string(), base_image.to_string());
+
+    fn get_filter_vec(filter_map: &HashMap<String, String>) -> Vec<String> {
+        let mut filter_vec = Vec::new();
+        for (key, value) in filter_map {
+            filter_vec.push(format!("label={}={}", key, value));
+        }
+        filter_vec
+    }
+
+    fn get_instructions(filter_map: &HashMap<String, String>) -> Vec<String> {
+        let mut instructions = Vec::new();
+        for (key, value) in filter_map {
+            instructions.push(format!("LABEL {}={}", key, value));
+        }
+        instructions.push(format!("LABEL updated_at={}", get_seconds()));
+        instructions
+    }
+
+    fn _process_container(
+        runner: &str,
+        target_image: &str,
+        base_image: &str,
+        cmd: &str,
+        filter_map: &HashMap<String, String>,
+    ) -> Result<(), CommandError> {
+        process_container(ContainerData {
+            runner,
+            target_image,
+            base_image,
+            cmd,
+            filters: &get_filter_vec(filter_map)
+                .iter()
+                .map(AsRef::as_ref)
+                .collect::<Vec<&str>>()
+                .as_slice(),
+            instructions: &get_instructions(filter_map)
+                .iter()
+                .map(AsRef::as_ref)
+                .collect::<Vec<&str>>()
+                .as_slice(),
+        })
+    }
+
     let cmd = generate_update_command(&package_manager);
     println!("Update image: {}", slim_image_name);
     let updated_image = format!("{}:db_updated", slim_image_name);
-    process_container(ContainerData {
-        runner: container_runner,
-        target_image: &updated_image,
-        base_image: &base_image,
-        cmd: &cmd,
-        filters: &vec![
-            format!("label=image={}", base_image).as_str(),
-            "label=status=db_update",
-        ],
-        instructions: &vec![
-            format!("LABEL image={}", base_image).as_str(),
-            "LABEL status=db_update",
-            format!("LABEL updated_at={}", get_seconds()).as_str(),
-        ],
-    })?;
+    filter_map.insert("status".to_string(), "db_update".to_string());
+    _process_container(
+        container_runner,
+        &updated_image,
+        &base_image,
+        &cmd,
+        &filter_map,
+    )?;
     println!("Updated image: {}", updated_image);
     let mut basic_package_image = updated_image.clone();
     if get_distrobox_mode() {
@@ -46,22 +84,15 @@ pub fn build_image(
         let packages = get_distrobox_packages(&distro_info.0);
         let cmd = generate_install_command(&package_manager, &packages);
         basic_package_image = format!("{}:distrobox_pre", slim_image_name);
-        process_container(ContainerData {
-            runner: container_runner,
-            target_image: &basic_package_image,
-            base_image: &updated_image,
-            cmd: &cmd,
-            filters: &vec![
-                format!("label=image={}", base_image).as_str(),
-                "label=status=distrobox_pre_install",
-                format!("label=packages0={}", packages.join(";")).as_str(),
-            ],
-            instructions: &vec![
-                "LABEL status=distrobox_pre_install",
-                format!("LABEL packages0={}", packages.join(";")).as_str(),
-                format!("LABEL updated_at={}", get_seconds()).as_str(),
-            ],
-        })?;
+        filter_map.insert("status".to_string(), "distrobox_pre_install".to_string());
+        filter_map.insert("packages0".to_string(), packages.join(";"));
+        _process_container(
+            container_runner,
+            &basic_package_image,
+            &updated_image,
+            &cmd,
+            &filter_map,
+        )?;
     }
     println!(
         "Initial image name(with updated tag): {}",
@@ -85,28 +116,36 @@ pub fn build_image(
                 hash(&package_label),
                 in_seceonds
             );
-            process_container(ContainerData {
-                runner: container_runner,
-                target_image: &package_installed_image,
-                base_image: &basic_package_image,
-                cmd: &cmd,
-                filters: &vec![
-                    format!("label=image={}", base_image).as_str(),
-                    "label=status=package_install",
-                    format!("label=package1={}", package_label).as_str(),
-                ],
-                instructions: &vec![
-                    "LABEL status=package_install",
-                    format!("LABEL package1={}", package_label).as_str(),
-                    format!("LABEL updated_at={}", in_seceonds).as_str(),
-                ],
-            })?;
+            filter_map.insert("status".to_string(), "package_install".to_string());
+            filter_map.insert("package1".to_string(), package_label);
+            _process_container(
+                container_runner,
+                &package_installed_image,
+                &basic_package_image,
+                &cmd,
+                &filter_map,
+            )?;
             println!(
                 "Package installed at {}\nPackages: {}",
                 package_installed_image, package
             );
             basic_package_image = package_installed_image;
         }
+    }
+
+    if get_distrobox_mode() {
+        println!("Touch /run/.containersetupdone for distrobox");
+        let distrobox_setup_tag_image = format!("{}:mark_distrobox_setup_done", slim_image_name);
+        let cmd = "touch /run/.containersetupdone";
+        filter_map.insert("status".to_string(), "distrobox_setup".to_string());
+        _process_container(
+            container_runner,
+            &distrobox_setup_tag_image,
+            &basic_package_image,
+            &cmd,
+            &filter_map,
+        )?;
+        basic_package_image = distrobox_setup_tag_image;
     }
 
     println!("Final snap image name: {}", basic_package_image);

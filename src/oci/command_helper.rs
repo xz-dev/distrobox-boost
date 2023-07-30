@@ -57,13 +57,6 @@ pub fn run_container_with_args(
     Ok((stdout, stderr))
 }
 
-pub fn stop_container(
-    container_runner: &str,
-    name: &str,
-) -> Result<(String, String), CommandError> {
-    stop_container_with_args(container_runner, name, &[])
-}
-
 pub fn stop_container_with_args(
     container_runner: &str,
     name: &str,
