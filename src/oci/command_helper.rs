@@ -29,7 +29,11 @@ pub fn run_container(
     image_name: &str,
     cmd: &str,
 ) -> Result<(String, String), CommandError> {
-    run_container_with_args(container_runner, name, image_name, cmd, &[])
+    let mut args = vec![];
+    if name.is_empty() {
+        args.push("--rm");
+    }
+    run_container_with_args(container_runner, name, image_name, cmd, &args)
 }
 
 pub fn run_container_with_args(
@@ -42,8 +46,6 @@ pub fn run_container_with_args(
     let mut args = vec!["run", "--user", "root"];
     if !name.is_empty() {
         args.extend_from_slice(&["--name", name]);
-    } else {
-        args.push("--rm");
     }
     args.extend_from_slice(extra_args);
     if !cmd.is_empty() {
@@ -180,7 +182,7 @@ pub fn pin_image(container_runner: &str, image_name: &str) -> Result<String, Com
         &name,
         image_name,
         "tail -f /dev/null",
-        &["-d"],
+        &["-d", "--restart", "unless-stopped"],
     )?;
     Ok(name)
 }
@@ -436,7 +438,11 @@ mod tests {
         let _ = pin_image(container_runner, image_name);
 
         // Stop the pinned container
-        let _ = stop_container_with_args(container_runner, &format!("pin-{}", image_name), &["-t", "0"]);
+        let _ = stop_container_with_args(
+            container_runner,
+            &format!("pin-{}", image_name),
+            &["-t", "0"],
+        );
 
         // Attempt to unpin the stopped container, expect success
         let result = unpin_image(container_runner, image_name);
