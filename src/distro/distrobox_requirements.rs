@@ -14,7 +14,7 @@ static PACKAGES_MAP: &[(&'static str, &'static [&'static str])] = &[
             "umount",
             "ncurses",
             "pinentry",
-            "posix-libc-utils",
+            "libc-utils",
             "procps",
             "shadow",
             "su-exec",
@@ -224,10 +224,10 @@ static PACKAGES_MAP: &[(&'static str, &'static [&'static str])] = &[
     ),
 ];
 
-pub fn get_distrobox_packages(distro_id: &str) -> Vec<&str> {
+pub fn get_distrobox_packages<'a>(distro_id: &'a str, _distro_version: &'a str) -> Vec<&'a str> {
     let mut packages = Vec::new();
     for (distro, pkgs) in PACKAGES_MAP.iter() {
-        if distro_id == *distro {
+        if distro_id.contains(distro) {
             packages = pkgs.to_vec();
         }
     }

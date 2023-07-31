@@ -14,7 +14,7 @@ pub fn generate_install_command(package_manager: &str, packages: &[&str]) -> Str
     match package_manager {
         "apk" => format!("apk add --no-cache {}", packages_str),
         "pacman" => format!("pacman -S --needed --noconfirm {}", packages_str),
-        "yum" => format!("yum -y install --nobest {}", packages_str),
+        "yum" => format!("yum -y install --skip-broken {}", packages_str),
         "apt" => format!("apt-get install -y {}", packages_str),
         "dnf" => format!("dnf -y install {}", packages_str),
         "zypper" => format!("zypper --non-interactive install {}", packages_str),
@@ -22,26 +22,25 @@ pub fn generate_install_command(package_manager: &str, packages: &[&str]) -> Str
     }
 }
 
-static PACKAGE_MAP: &[(&str, &str)] = &[
-    ("alpine", "apk"),
-    ("arch", "pacman"),
-    ("centos", "yum"),
-    ("rocky", "yum"),
-    ("debian", "apt"),
-    ("fedora", "dnf"),
-    ("opensuse", "zypper"),
-    ("ubuntu", "apt"),
-];
 pub fn get_package_manager(distro_id: &str, _distro_version: &str) -> String {
     // distr_info: cat /etc/os-release
     // data from os_info.rs parse_os_release
-    let mut package_manager = String::new();
-    if let Some((_, manager)) = PACKAGE_MAP.iter().find(|(key, _)| key == &distro_id) {
-        package_manager = manager.to_string();
-    } else if let Some((_, manager)) = PACKAGE_MAP.iter().find(|(key, _)| distro_id.contains(key)) {
-        package_manager = manager.to_string();
+    const PACKAGE_MAP: &[(&str, &str)] = &[
+        ("alpine", "apk"),
+        ("arch", "pacman"),
+        ("centos", "yum"),
+        ("rocky", "yum"),
+        ("debian", "apt"),
+        ("fedora", "dnf"),
+        ("opensuse", "zypper"),
+        ("ubuntu", "apt"),
+    ];
+
+    if let Some((_, manager)) = PACKAGE_MAP.iter().find(|(key, _)| distro_id.contains(key)) {
+        return manager.to_string();
     }
-    package_manager
+
+    String::new()
 }
 
 #[cfg(test)]

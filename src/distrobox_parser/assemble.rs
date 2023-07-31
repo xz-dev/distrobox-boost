@@ -25,11 +25,15 @@ pub struct ContainerAssembleData {
 }
 impl Default for ContainerAssembleData {
     fn default() -> Self {
+        let config = get_distrobox_config();
         Self {
             flags: None,
             packages: None,
             home: None,
-            image: String::new(),
+            image: config
+                .get("container_image_default")
+                .expect("No default image found")
+                .clone(),
             init_hooks: None,
             pre_init_hooks: None,
             volumes: None,
@@ -49,11 +53,6 @@ impl Default for ContainerAssembleData {
 pub fn parse_distrobox_assemble(content: &str) -> HashMap<String, ContainerAssembleData> {
     let parsed = from_ini(content);
     let merged = merge_ini(parsed);
-    let config = get_distrobox_config();
-    println!("config: {:?}", config);
-    let default_image = config
-        .get("container_image_default")
-        .expect("No default image found");
 
     merged
         .into_iter()
@@ -72,7 +71,7 @@ pub fn parse_distrobox_assemble(content: &str) -> HashMap<String, ContainerAssem
                     image: entry
                         .get("image")
                         .map(|i| i.join(" "))
-                        .unwrap_or(default_image.clone()),
+                        .unwrap_or(ContainerAssembleData::default().image),
                     init_hooks: entry.get("init_hooks").map(|i| i.clone()),
                     pre_init_hooks: entry.get("pre_init_hooks").map(|i| i.clone()),
                     volumes: entry.get("volumes").map(|i| {

@@ -81,7 +81,7 @@ pub fn build_image(
     let mut basic_package_image = updated_image.clone();
     if get_distrobox_mode() {
         println!("Install distrobox requirements");
-        let packages = get_distrobox_packages(&distro_info.0);
+        let packages = get_distrobox_packages(&distro_info.0, &distro_info.1);
         let cmd = generate_install_command(&package_manager, &packages);
         basic_package_image = format!("{}:distrobox_pre", slim_image_name);
         filter_map.insert("status".to_string(), "distrobox_pre_install".to_string());

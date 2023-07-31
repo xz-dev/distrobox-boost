@@ -35,8 +35,11 @@ fn build(
 #[derive(Parser, Debug)]
 #[clap(author, version, about)]
 struct Args {
+    #[clap(index = 1)]
+    package: Option<String>,
+
     #[clap(short, long)]
-    input: String,
+    input: Option<String>,
 
     #[clap(short, long)]
     output: Option<String>,
@@ -45,7 +48,7 @@ struct Args {
     output_dir: Option<String>,
 
     #[clap(short, long)]
-    ext_pkg: Option<String>,
+    pkg: Option<String>,
 
     #[clap(short, long)]
     non_distrobox: bool,
@@ -63,10 +66,24 @@ fn main() {
         println!("Non distrobox mode");
     }
 
-    let content = std::fs::read_to_string(&args.input).unwrap();
+    let mut distrobox_assemble_data_map = HashMap::new();
+    if args.package.is_some() {
+        let package = args.package.clone().unwrap();
+        distrobox_assemble_data_map.insert(
+            package.clone(),
+            ContainerAssembleData {
+                packages: Some(vec![package.clone()]),
+                ..Default::default()
+            },
+        );
+    }
 
-    let distrobox_assemble_data = parse_distrobox_assemble(&content);
-    let new_distrobox_assemble_data = build(&distrobox_assemble_data, args.ext_pkg);
+    if args.input.is_some() {
+        let content = std::fs::read_to_string(&args.input.unwrap()).unwrap();
+        distrobox_assemble_data_map.extend(parse_distrobox_assemble(&content));
+    }
+
+    let new_distrobox_assemble_data = build(&distrobox_assemble_data_map, args.pkg);
     let file_content = assemble_distrobox_to_str(&new_distrobox_assemble_data);
 
     if args.output.is_none() && args.output_dir.is_none() {
@@ -83,7 +100,10 @@ fn main() {
             output_path.push(name);
             output_path.set_extension("ini");
             let mut data = HashMap::new();
-            data.insert(name.clone(), new_distrobox_assemble_data.get(name).unwrap().clone());
+            data.insert(
+                name.clone(),
+                new_distrobox_assemble_data.get(name).unwrap().clone(),
+            );
             let file_content = assemble_distrobox_to_str(&data);
             std::fs::write(&output_path, &file_content).unwrap();
         }
