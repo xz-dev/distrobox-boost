@@ -21,11 +21,16 @@ Distrobox is good enough in running softwore, but compare to Package Manager suc
 
 ## Background
 
-When I tried to use distrobox, it's not lacking packages, because most users can package an app if they want, it's not that hard. I used distrobox as my build environment, such as building mono in RISC-V.
+When I tried to use distrobox, it's not because of lacking packages, most users can package an app if they want, it's not that hard. I used distrobox as my build environment, such as building mono in RISC-V.
 
 > But as you know, the init for distrobox is too slow. I wasted a lot of time waiting for distrobox to tell me everything is ready. Sometimes distrobox init fails when the network is bad or wrong package name, etc.
 
 So I decided to code this tool to save my time and help more users use distrobox and share their packages. Because I know many packages are only made for specific distros, and some distros like Gentoo, Void Linux, don't have many devs to package apps. I want to use them but also need some must-have apps.   
+
+Why I choice Rust but not bash:
+1. Easy write tests
+2. No runtime dependence issues
+3. faster!
 
 The goals of this tool are:
 
