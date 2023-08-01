@@ -72,8 +72,10 @@ pub fn parse_distrobox_assemble(content: &str) -> HashMap<String, ContainerAssem
                     home: entry.get("home").map(|h| h.join(" ")),
                     image: entry
                         .get("image")
-                        .map(|i| i.join(" "))
-                        .unwrap_or(ContainerAssembleData::default().image),
+                        .unwrap_or(&vec![ContainerAssembleData::default().image])
+                        .last()
+                        .unwrap()
+                        .to_string(),
                     init_hooks: entry.get("init_hooks").map(|i| i.clone()),
                     pre_init_hooks: entry.get("pre_init_hooks").map(|i| i.clone()),
                     volumes: entry.get("volumes").map(|i| {

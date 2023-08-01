@@ -47,7 +47,7 @@ struct Args {
     package_params: Option<Vec<String>>,
 
     #[clap(short, long, allow_hyphen_values = true, value_terminator = ";")]
-    assemple_arg: Option<Vec<String>>,
+    assemble_arg: Option<Vec<String>>,
 
     #[clap(short, long)]
     input: Option<String>,
@@ -82,10 +82,11 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    if args.package.is_none() && args.input.is_none() {
+    if args.package.is_none() && args.input.is_none() && args.assemble_arg.is_none() {
         println!("Use --help to get help");
-        return;
+        return
     }
+    println!("assblemble args: {:?}", args.assemble_arg);
 
     if args.non_distrobox {
         set_distrobox_mode(false);
@@ -103,7 +104,7 @@ fn main() {
             },
         );
         let mut assemble_content = assemble_distrobox_to_str(&assemble_data);
-        if let Some(ref assemple_data) = args.assemple_arg {
+        if let Some(ref assemple_data) = args.assemble_arg {
             assemble_content.push_str(
                 &assemple_data
                     .iter()
@@ -184,7 +185,7 @@ fn main() {
                 std::fs::write(&assemble_file_path, &file_content).unwrap();
                 assemble_file_path
             };
-            let assemble_args = if let Some(ref assemble_args) = args.assemple_arg {
+            let assemble_args = if let Some(ref assemble_args) = args.assemble_arg {
                 let assemble_args = &assemble_args
                     .iter()
                     .filter(|line| line.starts_with("-"))

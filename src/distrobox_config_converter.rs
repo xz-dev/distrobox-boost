@@ -10,6 +10,22 @@ use crate::utils::command_helper::run_command;
 fn build_image_by_tree(container_runner: &str, tree: &mut ContainerNode) {
     fn tree_to_image_map(container_runner: &str, tree: &mut ContainerNode, node_level: usize) {
         let image = &tree.container_assemble_data.image.clone();
+        if image.starts_with("dockerfile://") {
+            println!("Build dockerfile: {}", &image);
+            let image_name = format!("distrobox-dockerfile_{}", &tree.container_name);
+            let dockerfile_path = &image[12..];
+            let (stdout, stderr) = build_image_from_dockerfile_simple(
+                container_runner,
+                &image_name,
+                &dockerfile_path,
+                ".",
+            )
+            .unwrap();
+            tree.container_assemble_data.image = image_name;
+            println!("{}", stdout);
+            println!("{}", stderr);
+        }
+        let image = &tree.container_assemble_data.image.clone();
         println!("Build image: {}", &image);
         let empty_vec = vec![];
         let packages = tree
@@ -36,24 +52,6 @@ fn build_image_by_tree(container_runner: &str, tree: &mut ContainerNode) {
                 .skip(1)
                 .collect::<Vec<&str>>();
             let (stdout, stderr) = run_command(command_name, args).unwrap();
-            println!("{}", stdout);
-            println!("{}", stderr);
-        }
-        if tree
-            .container_assemble_data
-            .image
-            .starts_with("dockerfile://")
-        {
-            let image_name = format!("distrobox-dockerfile_{}", &tree.container_name);
-            let dockerfile_path = &tree.container_assemble_data.image[12..];
-            let (stdout, stderr) = build_image_from_dockerfile_simple(
-                container_runner,
-                &image_name,
-                &dockerfile_path,
-                ".",
-            )
-            .unwrap();
-            tree.container_assemble_data.image = image_name;
             println!("{}", stdout);
             println!("{}", stderr);
         }
