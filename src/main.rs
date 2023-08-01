@@ -70,8 +70,8 @@ struct Args {
     #[clap(long)]
     no_run: bool,
 
-    #[clap(raw = true)]
-    passthrough: Option<Vec<String>>,
+    #[clap(long, allow_hyphen_values = true, value_terminator = ";")]
+    run: Option<Vec<String>>,
 }
 
 fn main() {
@@ -80,16 +80,6 @@ fn main() {
         println!("Use --help to get help");
         return;
     }
-
-    let mut package_params = args.package_params.clone();
-    let index = package_params.iter().position(|s| s == "--");
-    let passthrough_args = if let Some(index) = index {
-        package_params.split_off(index + 1)
-    } else {
-        vec![]
-    };
-
-    package_params = package_params[..package_params.len() - passthrough_args.len()].to_vec();
 
     if args.non_distrobox {
         set_distrobox_mode(false);
@@ -111,7 +101,7 @@ fn main() {
             assemble_content.push_str(
                 &assemple_data
                     .iter()
-                    .filter(|line| line.contains("="))
+                    .filter(|line| !line.starts_with("-"))
                     .cloned()
                     .collect::<Vec<_>>()
                     .join("\n"),
@@ -191,7 +181,7 @@ fn main() {
             let assemble_args = if let Some(ref assemble_args) = args.assemple_arg {
                 let assemble_args = &assemble_args
                     .iter()
-                    .filter(|line| !line.contains("="))
+                    .filter(|line| line.starts_with("-"))
                     .cloned()
                     .collect::<Vec<_>>();
                 if !assemble_args.contains(&"rm".to_string())
@@ -230,11 +220,11 @@ fn main() {
                 vec![]
             };
 
-            let cmds = if !passthrough_args.is_empty() {
-                passthrough_args.clone()
+            let cmds = if let Some(run_args) = args.run {
+                run_args.clone()
             } else {
                 let mut cmds = vec![package.to_string()];
-                cmds.extend(package_params.clone());
+                cmds.extend(args.package_params.clone());
                 cmds
             };
 
