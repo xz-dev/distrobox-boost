@@ -80,3 +80,24 @@ fn copy_output(mut stream: impl Read) -> String {
     stream.read_to_string(&mut buffer).unwrap();
     buffer
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_run_command_success() {
+        let (stdout, stderr) = run_command("echo", &["Hello, World!"]).unwrap();
+        assert_eq!(stdout.trim(), "Hello, World!");
+        assert_eq!(stderr.trim(), "");
+    }
+
+    #[test]
+    fn test_run_command_failure() {
+        let error = run_command("nonexistent_command", &[]).unwrap_err();
+        assert!(error.inner.is_some());
+
+        let error = run_command("ls", &["nonexistent_directory"]).unwrap_err();
+        assert!(error.stderr.contains("nonexistent_directory"));
+    }
+}
