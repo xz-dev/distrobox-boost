@@ -1,4 +1,4 @@
-use crate::distrobox_parser::assemble::ContainerAssembleData;
+use crate::distrobox::parser::assemble::ContainerAssembleData;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::collections::HashMap;

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::container_tree::builder::build_container_trees;
 use crate::container_tree::distrobox_assemble_tree::{trees_to_distrobox_assemble, ContainerNode};
-use crate::distrobox_parser::assemble::ContainerAssembleData;
+use crate::distrobox::parser::assemble::ContainerAssembleData;
 use crate::oci::image_builder::build_image;
 
 fn build_image_by_tree(container_runner: &str, tree: &mut ContainerNode) {

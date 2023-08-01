@@ -1,27 +1,7 @@
 // run external progamm such as &get_container_manager() "docker"
 
+use crate::utils::command_helper::*;
 use std::collections::HashSet;
-use std::error::Error;
-use std::fmt;
-use std::io;
-use std::process::Command;
-
-#[derive(Debug)]
-pub struct CommandError {
-    pub stdout: String,
-    pub stderr: String,
-    pub inner: Option<io::Error>,
-}
-impl fmt::Display for CommandError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "stdout: {}\nstderr: {}", self.stdout, self.stderr)
-    }
-}
-impl Error for CommandError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
-}
 
 pub fn run_container(
     container_runner: &str,
@@ -139,40 +119,6 @@ pub fn tag_image(
     let args = ["tag", name, new_name];
     let (stdout, stderr) = run_command(container_runner, &args)?;
     Ok((stdout, stderr))
-}
-
-fn run_command(command_name: &str, args: &[&str]) -> Result<(String, String), CommandError> {
-    let mut command = Command::new(command_name);
-
-    for arg in args {
-        command.arg(arg);
-    }
-
-    let output = match command.output() {
-        Ok(output) => output,
-        Err(e) => {
-            return Err(CommandError {
-                stdout: String::new(),
-                stderr: String::new(),
-                inner: Some(e),
-            })
-        }
-    };
-
-    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-
-    if output.status.success() {
-        println!("Command succeed at {} {}", command_name, args.join(" "));
-        Ok((stdout, stderr))
-    } else {
-        println!("Command failed at {} {}", command_name, args.join(" "));
-        Err(CommandError {
-            stdout,
-            stderr,
-            inner: None,
-        })
-    }
 }
 
 pub fn pin_image(container_runner: &str, image_name: &str) -> Result<String, CommandError> {
@@ -340,10 +286,7 @@ mod tests {
         // Clean up: remove the temporary container and the new image
         let _ = remove_container(container_runner, container_name);
         let _ = remove_container(container_runner, container2_name);
-        let _ = Command::new(container_runner)
-            .arg("rmi")
-            .arg(new_image_name)
-            .output();
+        let _ = run_command(&container_runner, vec!["rmi", &new_image_name].as_slice());
     }
 
     #[test]

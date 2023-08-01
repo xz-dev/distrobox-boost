@@ -1,6 +1,6 @@
 use crate::container_tree::distrobox_assemble_tree::*;
 use crate::container_tree::merge::*;
-use crate::distrobox_parser::assemble::ContainerAssembleData;
+use crate::distrobox::parser::assemble::ContainerAssembleData;
 use std::collections::HashMap;
 
 pub fn build_container_trees(

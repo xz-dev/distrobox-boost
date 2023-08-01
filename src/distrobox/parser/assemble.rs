@@ -1,5 +1,5 @@
-use crate::distrobox_parser::config::get_distrobox_config;
 use crate::utils::ini::{from_ini, merge_ini, to_ini};
+use super::config::get_distrobox_config;
 use std::collections::HashMap;
 
 #[derive(Clone)]

@@ -3,6 +3,7 @@ use crate::distro::distrobox_requirements::get_distrobox_packages;
 use crate::distro::os_info::parse_os_release;
 use crate::distro::package_manager::*;
 use crate::oci::command_helper::*;
+use crate::utils::command_helper::CommandError;
 use crate::utils::mutex_lock::*;
 use lazy_static::lazy_static;
 use std::collections::hash_map::{DefaultHasher, HashMap};

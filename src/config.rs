@@ -1,4 +1,4 @@
-use crate::distrobox_parser::config::get_distrobox_config;
+use crate::distrobox::parser::config::get_distrobox_config;
 
 use std::process::Command;
 
