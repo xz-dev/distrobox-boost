@@ -38,7 +38,7 @@ fn build(
 struct Args {
     #[clap(index = 1)]
     package: Option<String>,
-    #[clap(last = true)]
+    #[clap(index = 2, allow_hyphen_values = true)]
     package_params: Vec<String>,
 
     #[clap(short, long)]
@@ -70,7 +70,7 @@ struct Args {
     #[clap(long)]
     no_run: bool,
 
-    #[clap(long)]
+    #[clap(raw = true)]
     passthrough: Option<Vec<String>>,
 }
 
@@ -80,6 +80,16 @@ fn main() {
         println!("Use --help to get help");
         return;
     }
+
+    let mut package_params = args.package_params.clone();
+    let index = package_params.iter().position(|s| s == "--");
+    let passthrough_args = if let Some(index) = index {
+        package_params.split_off(index + 1)
+    } else {
+        vec![]
+    };
+
+    package_params = package_params[..package_params.len() - passthrough_args.len()].to_vec();
 
     if args.non_distrobox {
         set_distrobox_mode(false);
@@ -220,16 +230,18 @@ fn main() {
                 vec![]
             };
 
-            let cmd = if let Some(pass_args) = args.passthrough {
-                pass_args.join(" ")
+            let cmds = if !passthrough_args.is_empty() {
+                passthrough_args.clone()
             } else {
-                format!("{} {}", package, args.package_params.join(" "))
+                let mut cmds = vec![package.to_string()];
+                cmds.extend(package_params.clone());
+                cmds
             };
 
             let _ = distrobox_enter(
                 &package,
                 &enter_args.iter().map(|s| s.as_str()).collect::<Vec<&str>>(),
-                &cmd,
+                &cmds.iter().map(|s| s.as_str()).collect::<Vec<&str>>(),
             )
             .unwrap();
         }
