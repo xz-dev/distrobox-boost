@@ -76,6 +76,11 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
+    if args.package.is_none() && args.input.is_none() {
+        println!("Use --help to get help");
+        return;
+    }
+
     if args.non_distrobox {
         set_distrobox_mode(false);
         println!("Non distrobox mode");
