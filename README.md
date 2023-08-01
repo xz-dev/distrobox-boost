@@ -47,6 +47,9 @@ $ cargo build --release
 $ ls target/release/distrobox-boost
 ```
 
+### From OBS
+[home:xz:distrobox-boost](https://build.opensuse.org/package/show/home:xz:distrobox-boost/distrobox-boost)
+
 ### From GitHub Release
 
 TODO
@@ -87,7 +90,14 @@ TODO
 
 ### Create distrobox image by command
 
-TODO: I hope to create distrobox image and run it without ini file
++ Run the package like nix-shell
+  ```sh
+  $ distrobox-boost fish -c 'ls -la'
+  ```
++ Run command in the package's container like nix-env
+  ```sh
+  $ distrobox-boost fish --run bash -c "ls -la"
+  ```
 
 ### Pin/Unpin image to avoid clean
 
@@ -102,7 +112,7 @@ $ target/release/distrobox-boost --input ./tests/files/example.ini --output ./te
 ## Roadmap
 
 - [ ] Build image from Dockerfile
-- [ ] Create distrobox image by command args  
+- [x] Create distrobox image by command args  
 - [ ] Update packages in image
 - [ ] Record packages in container
 - [ ] Backup/Restore from disk for sharing your container
