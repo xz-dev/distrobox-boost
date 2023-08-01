@@ -38,8 +38,13 @@ fn build(
 struct Args {
     #[clap(index = 1)]
     package: Option<String>,
-    #[clap(index = 2, allow_hyphen_values = true, value_terminator = ";")]
-    package_params: Vec<String>,
+    #[clap(
+        index = 2,
+        allow_hyphen_values = true,
+        value_terminator = ";",
+        required_unless_present = "package"
+    )]
+    package_params: Option<Vec<String>>,
 
     #[clap(short, long, allow_hyphen_values = true, value_terminator = ";")]
     assemple_arg: Option<Vec<String>>,
@@ -70,7 +75,8 @@ struct Args {
     #[clap(long)]
     no_run: bool,
 
-    #[clap(long, allow_hyphen_values = true, value_terminator = ";")]
+    #[arg(num_args(0..))]
+    #[clap(short, long, allow_hyphen_values = true, value_terminator = ";")]
     run: Option<Vec<String>>,
 }
 
@@ -173,7 +179,7 @@ fn main() {
             let assemble_file_path = if let Some(path) = file_path_map.get(package) {
                 path.clone()
             } else {
-                let assemble_file_path = format!("./distrobox_assemble_{}.tmp.ini", package);
+                let assemble_file_path = format!(".distrobox_assemble_{}.tmp.ini", package);
                 tmp_assemble_file = Some(assemble_file_path.clone());
                 std::fs::write(&assemble_file_path, &file_content).unwrap();
                 assemble_file_path
@@ -224,7 +230,9 @@ fn main() {
                 run_args.clone()
             } else {
                 let mut cmds = vec![package.to_string()];
-                cmds.extend(args.package_params.clone());
+                if let Some(ref args) = args.package_params {
+                    cmds.extend(args.clone());
+                }
                 cmds
             };
 
