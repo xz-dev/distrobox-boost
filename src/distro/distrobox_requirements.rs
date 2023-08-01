@@ -246,7 +246,7 @@ mod tests {
         let tmp_distrobox_mode = get_distrobox_mode();
         set_distrobox_mode(true);
 
-        let result = build_image(container_runner, &image_name, &base_image, &vec![]);
+        let result = build_image(container_runner, &image_name, &base_image, &None, &vec![]);
         set_distrobox_mode(tmp_distrobox_mode);
 
         let image_name = match result {

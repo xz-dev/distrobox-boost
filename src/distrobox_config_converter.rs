@@ -21,7 +21,14 @@ fn build_image_by_tree(container_runner: &str, tree: &mut ContainerNode) {
             "Build container name: {} to {}",
             &tree.container_name, &new_image
         );
-        build_image(container_runner, &new_image, &image, packages).unwrap();
+        build_image(
+            container_runner,
+            &new_image,
+            &image,
+            &tree.container_assemble_data.package_manager,
+            packages,
+        )
+        .unwrap();
         tree.container_assemble_data.image = new_image.clone();
         for child in &mut tree.children {
             tree_to_image_map(container_runner, child, node_level + 1);

@@ -14,12 +14,15 @@ pub fn build_image(
     container_runner: &str,
     target_image: &str,
     base_image: &str,
+    request_package_manager: &Option<String>,
     packages: &Vec<String>,
 ) -> Result<String, CommandError> {
     let cmd = "cat /etc/os-release".to_string();
     let (stdout, _stderr) = run_container(container_runner, "", base_image, &cmd)?;
     let distro_info = parse_os_release(&stdout).unwrap();
-    let package_manager = get_package_manager(&distro_info.0, &distro_info.1);
+    let package_manager = request_package_manager
+        .clone()
+        .unwrap_or(get_package_manager(&distro_info.0, &distro_info.1));
     let slim_image_name = target_image.replace(":", "-").replace("/", "-");
 
     let mut filter_map = HashMap::new();
@@ -247,7 +250,7 @@ mod tests {
         let base_image = "archlinux";
         let packages = vec!["bash".to_string(), "pacman".to_string()];
 
-        let result = build_image(container_runner, image_name, base_image, &packages);
+        let result = build_image(container_runner, image_name, base_image, &None, &packages);
 
         match result {
             Ok(image_name) => {
@@ -268,7 +271,8 @@ mod tests {
         let base_image = "archlinux:latest";
         let packages = vec!["fish".to_string(), "htop".to_string()];
 
-        let result = build_image(container_runner, image_name, base_image, &packages).unwrap();
+        let result =
+            build_image(container_runner, image_name, base_image, &None, &packages).unwrap();
         println!("Final image name: {}", result);
 
         // Test if 'fish' and 'top' commands exist
