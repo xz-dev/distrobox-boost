@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use crate::container_tree::builder::build_container_trees;
 use crate::container_tree::distrobox_assemble_tree::{trees_to_distrobox_assemble, ContainerNode};
 use crate::distrobox::parser::assemble::ContainerAssembleData;
+use crate::oci::command_helper::build_image_from_dockerfile_simple;
 use crate::oci::image_builder::build_image;
+use crate::utils::command_helper::run_command;
 
 fn build_image_by_tree(container_runner: &str, tree: &mut ContainerNode) {
     fn tree_to_image_map(container_runner: &str, tree: &mut ContainerNode, node_level: usize) {
@@ -21,6 +23,40 @@ fn build_image_by_tree(container_runner: &str, tree: &mut ContainerNode) {
             "Build container name: {} to {}",
             &tree.container_name, &new_image
         );
+        if tree.container_assemble_data.pre_build_image.is_some() {
+            let pre_build_image = tree
+                .container_assemble_data
+                .pre_build_image
+                .clone()
+                .unwrap();
+            println!("Pre build image: {}", &pre_build_image);
+            let command_name = &pre_build_image.split_whitespace().next().unwrap();
+            let args = &pre_build_image
+                .split_whitespace()
+                .skip(1)
+                .collect::<Vec<&str>>();
+            let (stdout, stderr) = run_command(command_name, args).unwrap();
+            println!("{}", stdout);
+            println!("{}", stderr);
+        }
+        if tree
+            .container_assemble_data
+            .image
+            .starts_with("dockerfile://")
+        {
+            let image_name = format!("distrobox-dockerfile_{}", &tree.container_name);
+            let dockerfile_path = &tree.container_assemble_data.image[12..];
+            let (stdout, stderr) = build_image_from_dockerfile_simple(
+                container_runner,
+                &image_name,
+                &dockerfile_path,
+                ".",
+            )
+            .unwrap();
+            tree.container_assemble_data.image = image_name;
+            println!("{}", stdout);
+            println!("{}", stderr);
+        }
         build_image(
             container_runner,
             &new_image,

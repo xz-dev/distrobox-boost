@@ -140,6 +140,17 @@ pub fn unpin_image(container_runner: &str, image_name: &str) -> Result<String, C
     Ok(name)
 }
 
+pub fn build_image_from_dockerfile_simple(
+    container_runner: &str,
+    name: &str,
+    dockerfile_path: &str,
+    context: &str,
+) -> Result<(String, String), CommandError> {
+    let args = vec!["build", "-t", name, "-f", dockerfile_path, context];
+    let (stdout, stderr) = run_command(container_runner, &args)?;
+    Ok((stdout, stderr))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
