@@ -38,10 +38,10 @@ fn build(
 struct Args {
     #[clap(index = 1)]
     package: Option<String>,
-    #[clap(index = 2, allow_hyphen_values = true)]
+    #[clap(index = 2, allow_hyphen_values = true, value_terminator = ";")]
     package_params: Vec<String>,
 
-    #[clap(short, long)]
+    #[clap(short, long, allow_hyphen_values = true, value_terminator = ";")]
     assemple_arg: Option<Vec<String>>,
 
     #[clap(short, long)]
@@ -64,7 +64,7 @@ struct Args {
     #[clap(short, long)]
     unpin: bool,
 
-    #[clap(long)]
+    #[clap(long, allow_hyphen_values = true, value_terminator = ";")]
     enter_arg: Option<Vec<String>>,
 
     #[clap(long)]
