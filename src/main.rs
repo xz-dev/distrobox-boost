@@ -169,10 +169,12 @@ fn main() {
 
     if !args.no_run {
         if let Some(ref package) = args.package {
+            let mut tmp_assemble_file: Option<String> = None;
             let assemble_file_path = if let Some(path) = file_path_map.get(package) {
                 path.clone()
             } else {
                 let assemble_file_path = format!("./distrobox_assemble_{}.tmp.ini", package);
+                tmp_assemble_file = Some(assemble_file_path.clone());
                 std::fs::write(&assemble_file_path, &file_content).unwrap();
                 assemble_file_path
             };
@@ -207,6 +209,9 @@ fn main() {
             println!("{}", stdout);
             if !stderr.is_empty() {
                 println!("Error: {}", stderr);
+            }
+            if let Some(tmp_assemble_file) = tmp_assemble_file {
+                std::fs::remove_file(&tmp_assemble_file).unwrap();
             }
 
             let enter_args = if let Some(enter_args) = args.enter_arg {

@@ -1,7 +1,7 @@
 use std::error::Error;
-use std::fmt;
 use std::io::{self, Read};
 use std::process::{Command, Stdio};
+use std::{fmt, thread};
 
 #[derive(Debug)]
 pub struct CommandError {
@@ -21,19 +21,35 @@ impl Error for CommandError {
         self.inner.as_ref().map(|x| x as &(dyn Error + 'static))
     }
 }
-
 pub fn run_command(command_name: &str, args: &[&str]) -> Result<(String, String), CommandError> {
+    _run_command(command_name, args, true)
+}
+pub fn run_command_no_pipe(
+    command_name: &str,
+    args: &[&str],
+) -> Result<(String, String), CommandError> {
+    _run_command(command_name, args, false)
+}
+
+fn _run_command(
+    command_name: &str,
+    args: &[&str],
+    pipe_output: bool,
+) -> Result<(String, String), CommandError> {
     println!("Run command: {} {}", command_name, args.join(" "));
 
-    let mut child = Command::new(command_name);
-    for arg in args {
-        child.arg(arg);
-    }
-
-    let mut child = child
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .stdin(Stdio::inherit())
+    let mut child = Command::new(command_name)
+        .args(args)
+        .stdout(if pipe_output {
+            Stdio::piped()
+        } else {
+            Stdio::inherit()
+        })
+        .stderr(if pipe_output {
+            Stdio::piped()
+        } else {
+            Stdio::inherit()
+        })
         .spawn()
         .map_err(|e| CommandError {
             stdout: String::new(),
@@ -41,46 +57,61 @@ pub fn run_command(command_name: &str, args: &[&str]) -> Result<(String, String)
             inner: Some(e),
         })?;
 
-    // Get stdout and stderr
-    let stdout = child.stdout.take().ok_or_else(|| CommandError {
-        stdout: String::new(),
-        stderr: String::new(),
-        inner: Some(io::Error::new(io::ErrorKind::BrokenPipe, "No stdout")),
-    })?;
+    if pipe_output {
+        let stdout_thread = thread::spawn({
+            let mut stdout_child = child.stdout.take().unwrap();
+            move || {
+                let mut buffer = String::new();
+                stdout_child.read_to_string(&mut buffer).unwrap();
+                buffer
+            }
+        });
 
-    let stderr = child.stderr.take().ok_or_else(|| CommandError {
-        stdout: String::new(),
-        stderr: String::new(),
-        inner: Some(io::Error::new(io::ErrorKind::BrokenPipe, "No stderr")),
-    })?;
+        let stderr_thread = thread::spawn({
+            let mut stderr_child = child.stderr.take().unwrap();
+            move || {
+                let mut buffer = String::new();
+                stderr_child.read_to_string(&mut buffer).unwrap();
+                buffer
+            }
+        });
 
-    // Copy stdout and stderr
-    let stdout_data = copy_output(stdout);
-    let stderr_data = copy_output(stderr);
+        let stdout = stdout_thread.join().unwrap();
+        let stderr = stderr_thread.join().unwrap();
 
-    // Wait for the command to finish
-    let status = child.wait().map_err(|e| CommandError {
-        stdout: stdout_data.clone(),
-        stderr: stderr_data.clone(),
-        inner: Some(e),
-    })?;
+        let status = child.wait().map_err(|e| CommandError {
+            stdout: stdout.clone(),
+            stderr: stderr.clone(),
+            inner: Some(e),
+        })?;
 
-    if status.success() {
-        Ok((stdout_data, stderr_data))
+        if status.success() {
+            Ok((stdout, stderr))
+        } else {
+            Err(CommandError {
+                stdout,
+                stderr,
+                inner: None,
+            })
+        }
     } else {
-        Err(CommandError {
-            stdout: stdout_data,
-            stderr: stderr_data,
-            inner: None,
-        })
+        let status = child.wait().map_err(|e| CommandError {
+            stdout: String::new(),
+            stderr: String::new(),
+            inner: Some(e),
+        })?;
+
+        if status.success() {
+            Ok((String::new(), String::new()))
+        } else {
+            Err(CommandError {
+                stdout: String::new(),
+                stderr: String::new(),
+                inner: None,
+            })
+        }
     }
 }
-fn copy_output(mut stream: impl Read) -> String {
-    let mut buffer = String::new();
-    stream.read_to_string(&mut buffer).unwrap();
-    buffer
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
