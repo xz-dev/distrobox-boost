@@ -185,19 +185,19 @@ fn main() {
         }
     }
 
-    if args.pin {
-        for data in new_distrobox_assemble_data.values() {
-            let result = pin_image(&get_container_manager(), &data.image);
-            if let Err(e) = result {
-                println!("Pin image {} failed: {}", &data.image, e);
-            }
-        }
-    }
     if args.unpin {
         for data in new_distrobox_assemble_data.values() {
             let result = unpin_image(&get_container_manager(), &data.image);
             if let Err(e) = result {
                 println!("Unpin image {} failed: {}", &data.image, e);
+            }
+        }
+    }
+    if args.pin {
+        for data in new_distrobox_assemble_data.values() {
+            let result = pin_image(&get_container_manager(), &data.image);
+            if let Err(e) = result {
+                println!("Pin image {} failed: {}", &data.image, e);
             }
         }
     }
