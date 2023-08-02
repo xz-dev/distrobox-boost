@@ -41,13 +41,13 @@ struct Args {
     #[clap(
         index = 2,
         allow_hyphen_values = true,
-        value_terminator = ";",
+        value_terminator = "--",
         required_unless_present = "package"
     )]
     package_params: Option<Vec<String>>,
 
-    #[clap(short, long, allow_hyphen_values = true, value_terminator = ";")]
-    assemble_arg: Option<Vec<String>>,
+    #[clap(short, long, allow_hyphen_values = true, value_terminator = ",")]
+    assemble: Option<Vec<String>>,
 
     #[clap(short, long)]
     input: Option<String>,
@@ -69,25 +69,53 @@ struct Args {
     #[clap(short, long)]
     unpin: bool,
 
-    #[clap(long, allow_hyphen_values = true, value_terminator = ";")]
-    enter_arg: Option<Vec<String>>,
+    #[clap(long, allow_hyphen_values = true, value_terminator = ",")]
+    enter: Option<Vec<String>>,
 
     #[clap(long)]
     no_run: bool,
 
     #[arg(num_args(0..))]
-    #[clap(short, long, allow_hyphen_values = true, value_terminator = ";")]
+    #[clap(short, long, allow_hyphen_values = true, value_terminator = "--")]
     run: Option<Vec<String>>,
 }
 
 fn main() {
     let args = Args::parse();
-    if args.package.is_none() && args.input.is_none() && args.assemble_arg.is_none() {
+    if args.package.is_none() && args.input.is_none() && args.assemble.is_none() {
         println!("Use --help to get help");
-        return
+        return;
     }
-    println!("assblemble args: {:?}", args.assemble_arg);
+    let package_params = match args.package_params {
+        Some(params) => Some(
+            params
+                .iter()
+                .map(|param| {
+                    if param == "\\--" {
+                        "--".to_string()
+                    } else {
+                        param.clone()
+                    }
+                })
+                .collect::<Vec<_>>(),
+        ),
+        None => None,
+    };
 
+    let run_args = match args.run {
+        Some(run) => Some(
+            run.iter()
+                .map(|param| {
+                    if param == "\\--" {
+                        "--".to_string()
+                    } else {
+                        param.clone()
+                    }
+                })
+                .collect::<Vec<_>>(),
+        ),
+        None => None,
+    };
     if args.non_distrobox {
         set_distrobox_mode(false);
         println!("Non distrobox mode");
@@ -104,7 +132,7 @@ fn main() {
             },
         );
         let mut assemble_content = assemble_distrobox_to_str(&assemble_data);
-        if let Some(ref assemple_data) = args.assemble_arg {
+        if let Some(ref assemple_data) = args.assemble {
             assemble_content.push_str(
                 &assemple_data
                     .iter()
@@ -185,7 +213,7 @@ fn main() {
                 std::fs::write(&assemble_file_path, &file_content).unwrap();
                 assemble_file_path
             };
-            let assemble_args = if let Some(ref assemble_args) = args.assemble_arg {
+            let assemble_args = if let Some(ref assemble_args) = args.assemble {
                 let assemble_args = &assemble_args
                     .iter()
                     .filter(|line| line.starts_with("-"))
@@ -221,17 +249,17 @@ fn main() {
                 std::fs::remove_file(&tmp_assemble_file).unwrap();
             }
 
-            let enter_args = if let Some(enter_args) = args.enter_arg {
+            let enter_args = if let Some(enter_args) = args.enter {
                 enter_args
             } else {
                 vec![]
             };
 
-            let cmds = if let Some(run_args) = args.run {
+            let cmds = if let Some(run_args) = run_args {
                 run_args.clone()
             } else {
                 let mut cmds = vec![package.to_string()];
-                if let Some(ref args) = args.package_params {
+                if let Some(ref args) = package_params {
                     cmds.extend(args.clone());
                 }
                 cmds
