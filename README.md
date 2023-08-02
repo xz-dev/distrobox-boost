@@ -1,4 +1,4 @@
-# distrobox_boost
+# Distrobox Boost
 
 [![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
 
@@ -18,6 +18,7 @@ Distrobox is good enough in running softwore, but compare to Package Manager suc
 - [Contributing](#contributing)
 - [Donation](#donation)
 - [License](#license)
+- [Star History](#star-history)
 
 ## Background
 
@@ -135,3 +136,7 @@ Feel free to dive in! Open issues or PRs. Before you code, please discuss in iss
 ## License
 
 [MIT](LICENSE)
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=xz-dev/distrobox-boost&type=Date)](https://star-history.com/#xz-dev/distrobox-boost&Date)
