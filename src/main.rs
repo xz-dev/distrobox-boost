@@ -19,13 +19,13 @@ use clap::Parser;
 
 fn build(
     distrobox_assemble_data: &HashMap<String, ContainerAssembleData>,
-    extra_packages: Option<String>,
+    extra_packages: Option<Vec<String>>,
 ) -> HashMap<String, ContainerAssembleData> {
     let mut distrobox_assemble_data = distrobox_assemble_data.clone();
     for value in distrobox_assemble_data.values_mut() {
         if let Some(ref pkgs) = extra_packages {
             let packages = value.packages.get_or_insert(Vec::new());
-            packages.push(pkgs.clone());
+            packages.extend(pkgs.clone());
         }
     }
     let new_distrobox_assemble_data =
@@ -36,14 +36,10 @@ fn build(
 #[derive(Parser, Debug)]
 #[clap(author, version, about)]
 struct Args {
-    #[clap(index = 1)]
-    package: Option<String>,
-    #[clap(
-        index = 2,
-        allow_hyphen_values = true,
-        value_terminator = "--",
-        required_unless_present = "package"
-    )]
+    #[clap(short = 'n', long)]
+    name: Option<String>,
+
+    #[clap(index = 1, allow_hyphen_values = true, value_terminator = "--")]
     package_params: Option<Vec<String>>,
 
     #[clap(short, long, allow_hyphen_values = true, value_terminator = ",")]
@@ -58,8 +54,9 @@ struct Args {
     #[clap(short, long)]
     output_dir: Option<String>,
 
+    #[arg(num_args(0..))]
     #[clap(short, long)]
-    pkg: Option<String>,
+    pkg: Option<Vec<String>>,
 
     #[clap(short, long)]
     non_distrobox: bool,
@@ -82,13 +79,12 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    if args.package.is_none() && args.input.is_none() && args.assemble.is_none() {
-        println!("Use --help to get help");
-        return;
-    }
-    let package_params = match args.package_params {
-        Some(params) => Some(
-            params
+    let mut package: Option<String> = None;
+    let mut package_params: Option<Vec<String>> = None;
+    if let Some(ref params) = args.package_params {
+        package = params.first().and_then(|s| Some(s.to_string()));
+        package_params = Some(
+            params[1..]
                 .iter()
                 .map(|param| {
                     if param == "\\--" {
@@ -97,10 +93,21 @@ fn main() {
                         param.clone()
                     }
                 })
-                .collect::<Vec<_>>(),
-        ),
-        None => None,
+                .collect(),
+        );
+    }
+    let name = if let Some(ref name) = args.name {
+        Some(name.to_string())
+    } else {
+        package.clone()
     };
+    if name.is_none() && args.input.is_none() && args.assemble.is_none() {
+        println!("Use --help to get help");
+        return;
+    }
+    println!("package: {:?}", package);
+    println!("package_params: {:?}", package_params);
+    println!("pkgs: {:?}", args.pkg);
 
     let run_args = match args.run {
         Some(run) => Some(
@@ -122,12 +129,17 @@ fn main() {
     }
 
     let mut distrobox_assemble_data_map = HashMap::new();
-    if let Some(ref package) = args.package {
+    if let Some(ref name) = name {
         let mut assemble_data = HashMap::new();
+        let packages = if let Some(ref package) = package {
+            Some(vec![package.to_string()])
+        } else {
+            None
+        };
         assemble_data.insert(
-            package.clone(),
+            name.clone(),
             ContainerAssembleData {
-                packages: Some(vec![package.to_string()]),
+                packages,
                 ..Default::default()
             },
         );
@@ -203,7 +215,7 @@ fn main() {
     }
 
     if !args.no_run {
-        if let Some(ref package) = args.package {
+        if let Some(ref package) = package {
             let mut tmp_assemble_file: Option<String> = None;
             let assemble_file_path = if let Some(path) = file_path_map.get(package) {
                 path.clone()
