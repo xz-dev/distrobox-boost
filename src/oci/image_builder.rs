@@ -18,8 +18,8 @@ pub fn build_image(
     packages: &Vec<String>,
 ) -> Result<String, CommandError> {
     let cmd = "cat /etc/os-release".to_string();
-    let (stdout, _stderr) = run_container(container_runner, "", base_image, &cmd)?;
-    let distro_info = parse_os_release(&stdout).unwrap();
+    let output = run_container(container_runner, "", base_image, &cmd, true)?;
+    let distro_info = parse_os_release(&output.stdout).unwrap();
     let package_manager = request_package_manager
         .clone()
         .unwrap_or(get_package_manager(&distro_info.0, &distro_info.1));
@@ -51,8 +51,9 @@ pub fn build_image(
         base_image: &str,
         cmd: &str,
         filter_map: &HashMap<String, String>,
+        realtime_output: bool,
     ) -> Result<(), CommandError> {
-        process_container(ContainerData {
+        process_container(&ContainerData {
             runner,
             target_image,
             base_image,
@@ -67,6 +68,7 @@ pub fn build_image(
                 .map(AsRef::as_ref)
                 .collect::<Vec<&str>>()
                 .as_slice(),
+            realtime_output,
         })
     }
 
@@ -80,6 +82,7 @@ pub fn build_image(
         &base_image,
         &cmd,
         &filter_map,
+        true,
     )?;
     println!("Updated image: {}", updated_image);
     let mut basic_package_image = updated_image.clone();
@@ -96,6 +99,7 @@ pub fn build_image(
             &updated_image,
             &cmd,
             &filter_map,
+            true,
         )?;
     }
     println!(
@@ -128,6 +132,7 @@ pub fn build_image(
                 &basic_package_image,
                 &cmd,
                 &filter_map,
+                true,
             )?;
             println!(
                 "Package installed at {}\nPackages: {}",
@@ -148,12 +153,13 @@ pub fn build_image(
             &basic_package_image,
             &cmd,
             &filter_map,
+            false,
         )?;
         basic_package_image = distrobox_setup_tag_image;
     }
 
     println!("Final snap image name: {}", basic_package_image);
-    let (_stdout, _stderr) = tag_image(container_runner, &basic_package_image, target_image)?;
+    tag_image(container_runner, &basic_package_image, target_image)?;
     Ok(target_image.to_string())
 }
 
@@ -168,6 +174,7 @@ pub struct ContainerData<'a> {
     pub target_image: &'a str,
     pub filters: &'a [&'a str],
     pub instructions: &'a [&'a str],
+    pub realtime_output: bool,
 }
 
 fn process_image_existence(
@@ -187,9 +194,16 @@ fn process_new_container(data: &ContainerData) -> Result<(), CommandError> {
 
     if !check_container_exists(data.runner, &container_name)? {
         println!("Running container: {}", &container_name);
-        let (stdout, _stderr) =
-            run_container(data.runner, &container_name, &data.base_image, &data.cmd)?;
-        println!("Command stdout: {}", stdout);
+        let output = run_container(
+            data.runner,
+            &container_name,
+            &data.base_image,
+            &data.cmd,
+            data.realtime_output,
+        )?;
+        if let Some(status) = output.status {
+            println!("status: {}", status);
+        }
     } else {
         println!("Container {} already exists", &container_name);
     }
@@ -198,7 +212,7 @@ fn process_new_container(data: &ContainerData) -> Result<(), CommandError> {
         "Commit image: {} by {}",
         &data.target_image, &container_name
     );
-    let (_stdout, _stderr) = commit_container(
+    commit_container(
         data.runner,
         &container_name,
         &data.target_image,
@@ -209,7 +223,7 @@ fn process_new_container(data: &ContainerData) -> Result<(), CommandError> {
     Ok(())
 }
 
-fn process_container(data: ContainerData) -> Result<(), CommandError> {
+fn process_container(data: &ContainerData) -> Result<(), CommandError> {
     let key = data.filters.join(";");
     GLOBAL_SYNC_MAP.execute(key, || -> Result<(), CommandError> {
         let image_id_list = find_images(data.runner, data.filters)?;
@@ -279,17 +293,8 @@ mod tests {
         let commands = vec!["fish", "htop"];
         for command in commands {
             let cmd = format!("command -v {}", command);
-            let result = run_container(container_runner, "", &result, &cmd);
-            match result {
-                Ok((stdout, _stderr)) => {
-                    println!("Output of {}: {}", cmd, stdout);
-                    assert!(!stdout.is_empty(), "Command {} does not exist", command);
-                }
-                Err(e) => {
-                    println!("Error checking command {}: {:?}", command, e);
-                    assert!(false, "Error checking command {}", command);
-                }
-            }
+            let result = run_container(container_runner, "", &result, &cmd, true);
+            assert!(result.is_ok(), "Error running command {}", command);
         }
     }
 }

@@ -244,19 +244,16 @@ fn main() {
                 vec!["create".to_string()]
             };
 
-            let (stdout, stderr) = distrobox_assemble(
+            distrobox_assemble(
                 &assemble_file_path,
                 &assemble_args.first().unwrap(),
                 &assemble_args[1..]
                     .iter()
                     .map(|s| s.as_str())
                     .collect::<Vec<&str>>(),
+                true,
             )
             .unwrap();
-            println!("{}", stdout);
-            if !stderr.is_empty() {
-                println!("Error: {}", stderr);
-            }
             if let Some(tmp_assemble_file) = tmp_assemble_file {
                 std::fs::remove_file(&tmp_assemble_file).unwrap();
             }

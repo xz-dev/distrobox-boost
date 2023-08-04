@@ -8,12 +8,20 @@ pub fn run_container(
     name: &str,
     image_name: &str,
     cmd: &str,
-) -> Result<(String, String), CommandError> {
+    realtime_output: bool,
+) -> Result<CommandOutput, CommandError> {
     let mut args = vec![];
     if name.is_empty() {
         args.push("--rm");
     }
-    run_container_with_args(container_runner, name, image_name, cmd, &args)
+    run_container_with_args(
+        container_runner,
+        name,
+        image_name,
+        cmd,
+        &args,
+        realtime_output,
+    )
 }
 
 pub fn run_container_with_args(
@@ -22,7 +30,8 @@ pub fn run_container_with_args(
     image_name: &str,
     cmd: &str,
     extra_args: &[&str],
-) -> Result<(String, String), CommandError> {
+    realtime_output: bool,
+) -> Result<CommandOutput, CommandError> {
     let mut args = vec!["run", "--user", "root"];
     if !name.is_empty() {
         args.extend_from_slice(&["--name", name]);
@@ -35,28 +44,25 @@ pub fn run_container_with_args(
         args.push(image_name);
     }
 
-    let (stdout, stderr) = run_command(container_runner, &args)?;
-    Ok((stdout, stderr))
+    let output = run_command(container_runner, &args, realtime_output)?;
+    Ok(output)
 }
 
 pub fn stop_container_with_args(
     container_runner: &str,
     name: &str,
     extra_args: &[&str],
-) -> Result<(String, String), CommandError> {
+) -> Result<CommandOutput, CommandError> {
     let mut args = vec!["stop", name];
     args.extend_from_slice(extra_args);
-    let (stdout, stderr) = run_command(container_runner, &args)?;
-    Ok((stdout, stderr))
+    let output = run_command(container_runner, &args, false)?;
+    Ok(output)
 }
 
-pub fn remove_container(
-    container_runner: &str,
-    name: &str,
-) -> Result<(String, String), CommandError> {
+pub fn remove_container(container_runner: &str, name: &str) -> Result<CommandOutput, CommandError> {
     let args = ["rm", name];
-    let (stdout, stderr) = run_command(container_runner, &args)?;
-    Ok((stdout, stderr))
+    let output = run_command(container_runner, &args, false)?;
+    Ok(output)
 }
 
 pub fn commit_container(
@@ -64,7 +70,7 @@ pub fn commit_container(
     comtainer_name: &str,
     image_name: &str,
     instructions: &[&str],
-) -> Result<(String, String), CommandError> {
+) -> Result<CommandOutput, CommandError> {
     let mut args = vec!["commit", comtainer_name, image_name];
     for instruction in instructions {
         args.push("-c");
@@ -73,21 +79,24 @@ pub fn commit_container(
     // clean CMD, commit will save the CMD from the container
     args.push("-c");
     args.push("CMD []");
-    let (stdout, stderr) = run_command(container_runner, &args)?;
-    Ok((stdout, stderr))
+    let output = run_command(container_runner, &args, false)?;
+    Ok(output)
 }
 
 pub fn find_images(container_runner: &str, filters: &[&str]) -> Result<Vec<String>, CommandError> {
     let mut result = Vec::new();
     for filter in filters {
         let args = vec!["images", "-q", "--filter", filter];
-        let (stdout, _stderr) = run_command(container_runner, &args)?;
-        let images: HashSet<String> = stdout
-            .split("\n")
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .collect();
-        result.push(images);
+        let output = run_command(container_runner, &args, false)?;
+        if output.status.is_some_and(|status| status == 0) {
+            let images: HashSet<String> = output
+                .stdout
+                .split("\n")
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .collect();
+            result.push(images);
+        }
     }
 
     let intersection = result
@@ -107,18 +116,18 @@ pub fn check_container_exists(
 ) -> Result<bool, CommandError> {
     let filter_string = format!("name=^{}$", container_name);
     let args = vec!["ps", "-aq", "-f", &filter_string];
-    let (stdout, _stderr) = run_command(container_runner, &args)?;
-    Ok(!stdout.trim().is_empty())
+    let output = run_command(container_runner, &args, false)?;
+    Ok(!output.stdout.is_empty())
 }
 
 pub fn tag_image(
     container_runner: &str,
     name: &str,
     new_name: &str,
-) -> Result<(String, String), CommandError> {
+) -> Result<CommandOutput, CommandError> {
     let args = ["tag", name, new_name];
-    let (stdout, stderr) = run_command(container_runner, &args)?;
-    Ok((stdout, stderr))
+    let output = run_command(container_runner, &args, false)?;
+    Ok(output)
 }
 
 pub fn pin_image(container_runner: &str, image_name: &str) -> Result<String, CommandError> {
@@ -129,6 +138,7 @@ pub fn pin_image(container_runner: &str, image_name: &str) -> Result<String, Com
         image_name,
         "tail -f /dev/null",
         &["-d", "--restart", "unless-stopped"],
+        false,
     )?;
     Ok(name)
 }
@@ -145,10 +155,10 @@ pub fn build_image_from_dockerfile_simple(
     name: &str,
     dockerfile_path: &str,
     context: &str,
-) -> Result<(String, String), CommandError> {
+) -> Result<CommandOutput, CommandError> {
     let args = vec!["build", "-t", name, "-f", dockerfile_path, context];
-    let (stdout, stderr) = run_command(container_runner, &args)?;
-    Ok((stdout, stderr))
+    let output = run_command(container_runner, &args, true)?;
+    Ok(output)
 }
 
 #[cfg(test)]
@@ -164,7 +174,7 @@ mod tests {
         let cmd = "ls";
 
         let _ = remove_container(container_runner, name);
-        let result = run_container(container_runner, name, image_name, cmd);
+        let result = run_container(container_runner, name, image_name, cmd, true);
         let _ = remove_container(container_runner, name);
         assert!(result.is_ok());
     }
@@ -175,15 +185,18 @@ mod tests {
         let image_name = "ubuntu";
         let cmd = "echo 'Hello, World!'";
 
-        let result = run_container(container_runner, "", image_name, cmd);
+        let result = run_container(container_runner, "", image_name, cmd, true);
         assert!(
             result.is_ok(),
             "Expected the container to run successfully with an empty name."
         );
 
         // Check if the command output is as expected
-        let (stdout, _) = result.unwrap();
-        assert_eq!(stdout.trim(), "Hello, World!", "Unexpected command output");
+        assert_eq!(
+            result.unwrap().stdout.trim_end(),
+            "Hello, World!",
+            "Unexpected command output"
+        );
     }
 
     #[test]
@@ -194,7 +207,7 @@ mod tests {
         let cmd = "ls -la /";
 
         let _ = remove_container(container_runner, name);
-        let result = run_container(container_runner, name, image_name, cmd);
+        let result = run_container(container_runner, name, image_name, cmd, true);
         let _ = remove_container(container_runner, name);
         assert!(result.is_ok());
     }
@@ -207,7 +220,7 @@ mod tests {
         let cmd = "";
 
         let _ = remove_container(container_runner, name);
-        let result = run_container(container_runner, name, image_name, cmd);
+        let result = run_container(container_runner, name, image_name, cmd, true);
         let _ = remove_container(container_runner, name);
         assert!(result.is_ok());
     }
@@ -220,7 +233,7 @@ mod tests {
         let cmd = "non_existent_command";
 
         let _ = remove_container(container_runner, name);
-        let result = run_container(container_runner, name, image_name, cmd);
+        let result = run_container(container_runner, name, image_name, cmd, true);
         let _ = remove_container(container_runner, name);
         assert!(result.is_err());
     }
@@ -232,7 +245,7 @@ mod tests {
         let image_name = "non_existent_image";
         let cmd = "ls";
 
-        assert!(run_container(container_runner, name, image_name, cmd).is_err());
+        assert!(run_container(container_runner, name, image_name, cmd, true).is_err());
     }
 
     #[test]
@@ -243,7 +256,7 @@ mod tests {
         let cmd = "ls /";
 
         // First, run a container with the specified name
-        let _ = run_container(container_runner, name, image_name, cmd);
+        let _ = run_container(container_runner, name, image_name, cmd, true);
 
         // Then, try to remove the container
         assert!(remove_container(container_runner, name).is_ok());
@@ -268,7 +281,7 @@ mod tests {
         // Create a file in the container using the echo command
         let cmd = "bash -c 'echo \"Hello, World!\" > /testfile.txt'";
         let _ = remove_container(container_runner, container_name);
-        let _ = run_container(container_runner, container_name, image_name, cmd);
+        let _ = run_container(container_runner, container_name, image_name, cmd, true);
 
         // Commit the container to a new image
         let new_image_name = "test_commit_image_with_file";
@@ -283,13 +296,14 @@ mod tests {
             container2_name,
             new_image_name,
             cmd_check_file,
+            true,
         );
         assert!(run_result.is_ok(), "File not found: {:?}", run_result.err());
 
         // Check if the file contains the expected content
-        let (file_content, _) = run_result.unwrap();
+        let file_content = run_result.unwrap().stdout;
         assert_eq!(
-            file_content.trim(),
+            file_content.trim_end(),
             "Hello, World!",
             "Unexpected file content"
         );
@@ -297,7 +311,11 @@ mod tests {
         // Clean up: remove the temporary container and the new image
         let _ = remove_container(container_runner, container_name);
         let _ = remove_container(container_runner, container2_name);
-        let _ = run_command(&container_runner, vec!["rmi", &new_image_name].as_slice());
+        let _ = run_command(
+            &container_runner,
+            vec!["rmi", &new_image_name].as_slice(),
+            true,
+        );
     }
 
     #[test]
@@ -328,7 +346,7 @@ mod tests {
         // After run the container
         let image_name = "ubuntu";
         let cmd = "ls";
-        let _ = run_container(container_runner, name, image_name, cmd);
+        let _ = run_container(container_runner, name, image_name, cmd, true);
         let result = check_container_exists(container_runner, name);
         let _ = remove_container(container_runner, name);
 

@@ -59,20 +59,12 @@ mod tests {
 
         // Generate and run the update command
         let update_cmd = generate_update_command(package_manager_name);
-        let update_result = run_container(container_runner, "", image_name, &update_cmd);
-        match update_result {
-            Ok((stdout, stderr)) => {
-                // Check the outputs here if necessary
-                println!("Update command stdout: {}", stdout);
-                println!("Update command stderr: {}", stderr);
-            }
-            Err(command_error) => {
-                panic!(
-                    "Failed to run update command on image {}. stdout: {}, stderr: {}",
-                    image_name, command_error.stdout, command_error.stderr
-                );
-            }
-        }
+        let update_result = run_container(container_runner, "", image_name, &update_cmd, true);
+        assert!(
+            update_result.is_ok(),
+            "Failed to run update command on image {}",
+            image_name
+        );
 
         // Generate and run the install command
         let packages = ["bash", "nano"];
@@ -81,20 +73,12 @@ mod tests {
             update_cmd,
             generate_install_command(package_manager_name, &packages)
         );
-        let install_result = run_container(container_runner, "", image_name, &install_cmd);
-        match install_result {
-            Ok((stdout, stderr)) => {
-                // Check the outputs here if necessary
-                println!("Install command stdout: {}", stdout);
-                println!("Install command stderr: {}", stderr);
-            }
-            Err(command_error) => {
-                panic!(
-                    "Failed to run install command on image {}. stdout: {}, stderr: {}",
-                    image_name, command_error.stdout, command_error.stderr
-                );
-            }
-        }
+        let install_result = run_container(container_runner, "", image_name, &install_cmd, true);
+        assert!(
+            install_result.is_ok(),
+            "Failed to run install command on image {}",
+            image_name
+        );
     }
     macro_rules! generate_package_tests {
     ($($name:ident: $value:expr,)*) => {
@@ -124,10 +108,10 @@ mod tests {
     ) {
         // Run the container and use parse_os_release to get os info
         let os_info_cmd = "cat /etc/os-release";
-        let os_info_result = run_container(container_runner, "", image_name, os_info_cmd);
+        let os_info_result = run_container(container_runner, "", image_name, os_info_cmd, true);
 
         let (distro_name, distro_version) = match os_info_result {
-            Ok((stdout, _stderr)) => parse_os_release(&stdout),
+            Ok(output) => parse_os_release(&output.stdout),
             Err(e) => panic!("Error getting OS info from image {}: {:?}", image_name, e),
         }
         .unwrap_or_else(|| panic!("Could not parse OS info from image {}", image_name));

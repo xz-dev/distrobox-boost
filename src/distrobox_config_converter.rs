@@ -14,16 +14,16 @@ fn build_image_by_tree(container_runner: &str, tree: &mut ContainerNode) {
             println!("Build dockerfile: {}", &image);
             let image_name = format!("distrobox-dockerfile_{}", &tree.container_name);
             let dockerfile_path = &image[12..];
-            let (stdout, stderr) = build_image_from_dockerfile_simple(
+            let output = build_image_from_dockerfile_simple(
                 container_runner,
                 &image_name,
                 &dockerfile_path,
                 ".",
             )
             .unwrap();
-            tree.container_assemble_data.image = image_name;
-            println!("{}", stdout);
-            println!("{}", stderr);
+            if output.status.is_some_and(|status| status == 0) {
+                tree.container_assemble_data.image = image_name;
+            }
         }
         let image = &tree.container_assemble_data.image.clone();
         println!("Build image: {}", &image);
@@ -51,9 +51,7 @@ fn build_image_by_tree(container_runner: &str, tree: &mut ContainerNode) {
                 .split_whitespace()
                 .skip(1)
                 .collect::<Vec<&str>>();
-            let (stdout, stderr) = run_command(command_name, args).unwrap();
-            println!("{}", stdout);
-            println!("{}", stderr);
+            run_command(command_name, args, true).unwrap();
         }
         build_image(
             container_runner,

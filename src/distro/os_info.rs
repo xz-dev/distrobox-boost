@@ -47,9 +47,15 @@ mod tests {
     create_test!(test_parse_os_release_apt_ubuntu, "ubuntu");
 
     fn test_parse_os_release(container_runner: &str, image_name: &str) {
-        let (stdout, _stderr) =
-            run_container(container_runner, "", image_name, "cat /etc/os-release").unwrap();
-        let parsed = parse_os_release(&stdout);
+        let output = run_container(
+            container_runner,
+            "",
+            image_name,
+            "cat /etc/os-release",
+            true,
+        )
+        .unwrap();
+        let parsed = parse_os_release(&output.stdout);
         assert!(
             parsed.is_some(),
             "Failed to parse OS release info for image \"{}\"",

@@ -256,8 +256,7 @@ mod tests {
             }
             Err(e) => {
                 println!("Error building image: {:?}", e);
-                assert!(false, "Error building image");
-                return;
+                panic!("Error building image");
             }
         };
 
@@ -269,8 +268,8 @@ mod tests {
         for cmd in cmds {
             let check_cmd = format!("command -v {}", cmd);
 
-            match run_container(container_runner, "", &image_name, &check_cmd) {
-                Ok((stdout, _stderr)) => assert!(!stdout.is_empty()),
+            match run_container(container_runner, "", &image_name, &check_cmd, true) {
+                Ok(output) => assert!(!output.stdout.is_empty()),
                 Err(e) => panic!("Error getting OS info from image {}: {:?}", image_name, e),
             }
         }
