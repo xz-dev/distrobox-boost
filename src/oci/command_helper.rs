@@ -83,6 +83,12 @@ pub fn commit_container(
     Ok(output)
 }
 
+pub fn remove_image(container_runner: &str, name: &str) -> Result<CommandOutput, CommandError> {
+    let args = ["rmi", name];
+    let output = run_command(container_runner, &args, false)?;
+    Ok(output)
+}
+
 pub fn find_images(container_runner: &str, filters: &[&str]) -> Result<Vec<String>, CommandError> {
     let mut result = Vec::new();
     for filter in filters {
@@ -281,7 +287,7 @@ mod tests {
         // Create a file in the container using the echo command
         let cmd = "bash -c 'echo \"Hello, World!\" > /testfile.txt'";
         let _ = remove_container(container_runner, container_name);
-        let _ = run_container(container_runner, container_name, image_name, cmd, true);
+        run_container(container_runner, container_name, image_name, cmd, true).unwrap();
 
         // Commit the container to a new image
         let new_image_name = "test_commit_image_with_file";
@@ -311,11 +317,7 @@ mod tests {
         // Clean up: remove the temporary container and the new image
         let _ = remove_container(container_runner, container_name);
         let _ = remove_container(container_runner, container2_name);
-        let _ = run_command(
-            &container_runner,
-            vec!["rmi", &new_image_name].as_slice(),
-            true,
-        );
+        let _ = remove_image(container_runner, new_image_name);
     }
 
     #[test]
@@ -330,6 +332,107 @@ mod tests {
             result.is_err(),
             "Expected an error when committing an invalid container, but got a success."
         );
+    }
+
+    #[test]
+    fn test_remove_image() {
+        let container_runner = &get_container_manager();
+        let name = "test_case_remove_1";
+        let image_name = "ubuntu";
+        let cmd = "ls /";
+
+        // First, run a container with the specified name
+        let _ = run_container(container_runner, name, image_name, cmd, true);
+
+        // Then, try to remove the container
+        assert!(remove_container(container_runner, name).is_ok());
+    }
+
+    #[test]
+    fn test_remove_non_existent_container() {
+        let container_runner = &get_container_manager();
+        let name = "test_case_remove_2";
+
+        // Try to remove a container that doesn't exist
+        assert!(remove_container(container_runner, name).is_err());
+    }
+
+    #[test]
+    fn test_find_images_single_filter() {
+        let container_runner = &get_container_manager();
+        let image_name = "ubuntu";
+        let container_name = "test_find_images_single_container";
+        let _ = remove_container(container_runner, container_name);
+        run_container(container_runner, container_name, image_name, "ls", true).unwrap();
+        let new_image_name = "test_find_images_single_image";
+        let new_image_name_2 = "test_find_images_single_image";
+        commit_container(
+            container_runner,
+            container_name,
+            new_image_name,
+            &vec!["LABEL test=1"],
+        ).unwrap();
+        commit_container(
+            container_runner,
+            container_name,
+            new_image_name_2,
+            &vec!["LABEL test=2"],
+        )
+        .unwrap();
+        let filters = vec!["label=test=1"];
+
+        let result = find_images(container_runner, &filters);
+
+        assert!(result.unwrap() == vec![String::from(new_image_name)]);
+        let _ = remove_container(container_runner, container_name);
+        let _ = remove_image(container_runner, new_image_name);
+        let _ = remove_image(container_runner, new_image_name_2);
+    }
+
+    #[test]
+    fn test_find_images_multiple_filters() {
+        let container_runner = &get_container_manager();
+        let image_name = "ubuntu";
+        let container_name = "test_find_images_multiple_container";
+        let _ = remove_container(container_runner, container_name);
+        run_container(container_runner, container_name, image_name, "ls", true).unwrap();
+        let new_image_name = "test_find_images_multiple_image";
+        commit_container(
+            container_runner,
+            container_name,
+            new_image_name,
+            &vec!["LABEL test=1", "LABEL dev=2"],
+        )
+        .unwrap();
+        let filters = vec!["label=test=1", "label=dev=2"];
+
+        let result = find_images(container_runner, &filters);
+
+        assert!(result.unwrap() == vec![String::from(new_image_name)]);
+        let _ = remove_container(container_runner, container_name);
+        let _ = remove_image(container_runner, new_image_name);
+    }
+
+    #[test]
+    fn test_find_images_no_match() {
+        let container_runner = &get_container_manager();
+        let filters = vec!["label=nonexistent"];
+
+        let result = find_images(container_runner, &filters);
+
+        assert!(result.unwrap().is_empty());
+        // 校验返回为空列表
+    }
+
+    #[test]
+    fn test_find_images_invalid_filter() {
+        let container_runner = &get_container_manager();
+        let filters = vec!["invalidfilter"];
+
+        let result = find_images(container_runner, &filters);
+
+        assert!(result.is_err());
+        // 校验错误原因
     }
 
     #[test]
