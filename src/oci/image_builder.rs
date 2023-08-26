@@ -47,17 +47,17 @@ pub fn build_image(
 
     fn _process_container(
         runner: &str,
+        cmd: &str,
         target_image: &str,
         base_image: &str,
-        cmd: &str,
         filter_map: &HashMap<String, String>,
         realtime_output: bool,
     ) -> Result<(), CommandError> {
         process_container(&ContainerData {
             runner,
+            cmd,
             target_image,
             base_image,
-            cmd,
             filters: &get_filter_vec(filter_map)
                 .iter()
                 .map(AsRef::as_ref)
@@ -78,9 +78,9 @@ pub fn build_image(
     filter_map.insert("status".to_string(), "db_update".to_string());
     _process_container(
         container_runner,
+        &cmd,
         &updated_image,
         &base_image,
-        &cmd,
         &filter_map,
         true,
     )?;
@@ -95,9 +95,9 @@ pub fn build_image(
         filter_map.insert("packages0".to_string(), packages.join(";"));
         _process_container(
             container_runner,
+            &cmd,
             &basic_package_image,
             &updated_image,
-            &cmd,
             &filter_map,
             true,
         )?;
@@ -128,9 +128,9 @@ pub fn build_image(
             filter_map.insert("package1".to_string(), package_label);
             _process_container(
                 container_runner,
+                &cmd,
                 &package_installed_image,
                 &basic_package_image,
-                &cmd,
                 &filter_map,
                 true,
             )?;
@@ -149,9 +149,9 @@ pub fn build_image(
         filter_map.insert("status".to_string(), "distrobox_setup".to_string());
         _process_container(
             container_runner,
+            &cmd,
             &distrobox_setup_tag_image,
             &basic_package_image,
-            &cmd,
             &filter_map,
             false,
         )?;
@@ -169,8 +169,8 @@ lazy_static! {
 
 pub struct ContainerData<'a> {
     pub runner: &'a str,
-    pub base_image: &'a str,
     pub cmd: &'a str,
+    pub base_image: &'a str,
     pub target_image: &'a str,
     pub filters: &'a [&'a str],
     pub instructions: &'a [&'a str],
