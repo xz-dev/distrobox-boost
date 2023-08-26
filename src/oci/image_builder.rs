@@ -16,6 +16,7 @@ pub fn build_image(
     base_image: &str,
     request_package_manager: &Option<String>,
     packages: &Vec<String>,
+    distrobox_mode: bool,
 ) -> Result<String, CommandError> {
     let cmd = "cat /etc/os-release".to_string();
     let output = run_container(container_runner, "", base_image, &cmd, true)?;
@@ -28,24 +29,7 @@ pub fn build_image(
     let mut filter_map = HashMap::new();
     filter_map.insert("image".to_string(), base_image.to_string());
 
-    fn get_filter_vec(filter_map: &HashMap<String, String>) -> Vec<String> {
-        let mut filter_vec = Vec::new();
-        for (key, value) in filter_map {
-            filter_vec.push(format!("label={}={}", key, value));
-        }
-        filter_vec
-    }
-
-    fn get_instructions(filter_map: &HashMap<String, String>) -> Vec<String> {
-        let mut instructions = Vec::new();
-        for (key, value) in filter_map {
-            instructions.push(format!("LABEL {}={}", key, value));
-        }
-        instructions.push(format!("LABEL updated_at={}", get_seconds()));
-        instructions
-    }
-
-    fn _process_container(
+    fn _run_and_commit_image(
         runner: &str,
         cmd: &str,
         target_image: &str,
@@ -53,7 +37,7 @@ pub fn build_image(
         filter_map: &HashMap<String, String>,
         realtime_output: bool,
     ) -> Result<(), CommandError> {
-        process_container(&ContainerData {
+        run_and_commit_image(&ContainerData {
             runner,
             cmd,
             target_image,
@@ -76,7 +60,7 @@ pub fn build_image(
     println!("Update image: {}", slim_image_name);
     let updated_image = format!("{}:db_updated", slim_image_name);
     filter_map.insert("status".to_string(), "db_update".to_string());
-    _process_container(
+    _run_and_commit_image(
         container_runner,
         &cmd,
         &updated_image,
@@ -93,7 +77,7 @@ pub fn build_image(
         basic_package_image = format!("{}:distrobox_pre", slim_image_name);
         filter_map.insert("status".to_string(), "distrobox_pre_install".to_string());
         filter_map.insert("packages0".to_string(), packages.join(";"));
-        _process_container(
+        _run_and_commit_image(
             container_runner,
             &cmd,
             &basic_package_image,
@@ -126,7 +110,7 @@ pub fn build_image(
             );
             filter_map.insert("status".to_string(), "package_install".to_string());
             filter_map.insert("package1".to_string(), package_label);
-            _process_container(
+            _run_and_commit_image(
                 container_runner,
                 &cmd,
                 &package_installed_image,
@@ -142,12 +126,12 @@ pub fn build_image(
         }
     }
 
-    if get_distrobox_mode() {
+    if distrobox_mode {
         println!("Touch /run/.containersetupdone for distrobox");
         let distrobox_setup_tag_image = format!("{}:mark_distrobox_setup_done", slim_image_name);
         let cmd = "touch /run/.containersetupdone";
         filter_map.insert("status".to_string(), "distrobox_setup".to_string());
-        _process_container(
+        _run_and_commit_image(
             container_runner,
             &cmd,
             &distrobox_setup_tag_image,
@@ -161,6 +145,23 @@ pub fn build_image(
     println!("Final snap image name: {}", basic_package_image);
     tag_image(container_runner, &basic_package_image, target_image)?;
     Ok(target_image.to_string())
+}
+
+fn get_filter_vec(filter_map: &HashMap<String, String>) -> Vec<String> {
+    let mut filter_vec = Vec::new();
+    for (key, value) in filter_map {
+        filter_vec.push(format!("label={}={}", key, value));
+    }
+    filter_vec
+}
+
+fn get_instructions(filter_map: &HashMap<String, String>) -> Vec<String> {
+    let mut instructions = Vec::new();
+    for (key, value) in filter_map {
+        instructions.push(format!("LABEL {}={}", key, value));
+    }
+    instructions.push(format!("LABEL updated_at={}", get_seconds()));
+    instructions
 }
 
 lazy_static! {
@@ -177,7 +178,7 @@ pub struct ContainerData<'a> {
     pub realtime_output: bool,
 }
 
-fn process_image_existence(
+fn recommit_image(
     container_runner: &str,
     target_image: &str,
     image_id_list: &[String],
@@ -189,8 +190,16 @@ fn process_image_existence(
     return Ok(());
 }
 
-fn process_new_container(data: &ContainerData) -> Result<(), CommandError> {
-    let container_name = format!("{}-{}", data.target_image.replace(":", "-"), get_seconds());
+fn create_new_image(data: &ContainerData) -> Result<(), CommandError> {
+    let container_name = format!(
+        "{}-{}",
+        data.target_image
+            .rsplit_once("/")
+            .unwrap_or(("", data.target_image))
+            .1
+            .replace(":", "-"),
+        get_seconds()
+    );
 
     if !check_container_exists(data.runner, &container_name)? {
         println!("Running container: {}", &container_name);
@@ -223,15 +232,15 @@ fn process_new_container(data: &ContainerData) -> Result<(), CommandError> {
     Ok(())
 }
 
-fn process_container(data: &ContainerData) -> Result<(), CommandError> {
+fn run_and_commit_image(data: &ContainerData) -> Result<(), CommandError> {
     let key = data.filters.join(";");
     GLOBAL_SYNC_MAP.execute(key, || -> Result<(), CommandError> {
         let image_id_list = find_images(data.runner, data.filters)?;
 
         if !image_id_list.is_empty() {
-            process_image_existence(data.runner, data.target_image, &image_id_list)?;
+            recommit_image(data.runner, data.target_image, &image_id_list)?;
         } else {
-            process_new_container(&data)?;
+            create_new_image(&data)?;
         };
 
         Ok(())
@@ -255,16 +264,23 @@ fn get_seconds() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::get_container_manager;
+    use crate::config::{get_container_manager, set_distrobox_mode};
 
     #[test]
     fn test_build_image() {
         let container_runner = &get_container_manager();
         let image_name = "test_image";
-        let base_image = "archlinux";
+        let base_image = "ubuntu";
         let packages = vec!["bash".to_string(), "pacman".to_string()];
 
-        let result = build_image(container_runner, image_name, base_image, &None, &packages);
+        let result = build_image(
+            container_runner,
+            image_name,
+            base_image,
+            &None,
+            &packages,
+            false,
+        );
 
         match result {
             Ok(image_name) => {
@@ -281,12 +297,19 @@ mod tests {
     #[test]
     fn test_build_image_valid() {
         let container_runner = &get_container_manager();
-        let image_name = "test_image";
-        let base_image = "archlinux:latest";
+        let image_name = "test_build_image_valid";
+        let base_image = "ubuntu";
         let packages = vec!["fish".to_string(), "htop".to_string()];
 
-        let result =
-            build_image(container_runner, image_name, base_image, &None, &packages).unwrap();
+        let result = build_image(
+            container_runner,
+            image_name,
+            base_image,
+            &None,
+            &packages,
+            true,
+        )
+        .unwrap();
         println!("Final image name: {}", result);
 
         // Test if 'fish' and 'top' commands exist
@@ -296,5 +319,132 @@ mod tests {
             let result = run_container(container_runner, "", &result, &cmd, true);
             assert!(result.is_ok(), "Error running command {}", command);
         }
+
+        let result = run_container(
+            container_runner,
+            "",
+            &result,
+            "ls /run/.containersetupdone",
+            true,
+        );
+        assert!(
+            result.is_ok(),
+            "/run/.containersetupdone not found at {}",
+            image_name
+        );
+    }
+    #[test]
+    fn test_build_image_valid_no_distrobox_mode() {
+        let container_runner = &get_container_manager();
+        let image_name = "test_build_image_valid_no_distrobox_mode";
+        let base_image = "ubuntu";
+        let packages = vec!["fish".to_string(), "htop".to_string()];
+
+        let result = build_image(
+            container_runner,
+            image_name,
+            base_image,
+            &None,
+            &packages,
+            false,
+        )
+        .unwrap();
+        println!("Final image name: {}", result);
+
+        // Test if 'fish' and 'top' commands exist
+        let commands = vec!["fish", "htop"];
+        for command in commands {
+            let cmd = format!("command -v {}", command);
+            let result = run_container(container_runner, "", &result, &cmd, false);
+            assert!(result.is_ok(), "Error running command {}", command);
+        }
+
+        let result = run_container(
+            container_runner,
+            "",
+            &result,
+            "ls /run/.containersetupdone",
+            true,
+        );
+        assert!(
+            result.is_err(),
+            "/run/.containersetupdone found at {} in no distrobox mode",
+            image_name
+        );
+    }
+    #[test]
+    fn test_build_image_valid_distrobox_mode() {
+        let container_runner = &get_container_manager();
+        let image_name = "test_image_distrobox_mode";
+        let base_image = "ubuntu";
+        let packages = vec![];
+
+        set_distrobox_mode(true);
+        let result = build_image(
+            container_runner,
+            image_name,
+            base_image,
+            &None,
+            &packages,
+            true,
+        )
+        .unwrap();
+        println!("Final image name: {}", result);
+
+        let result = run_container(
+            container_runner,
+            "",
+            &result,
+            "ls /run/.containersetupdone",
+            true,
+        );
+        assert!(
+            result.is_ok(),
+            "/run/.containersetupdone not found at {}",
+            image_name
+        );
+    }
+
+    #[test]
+    fn test_create_new_image() {
+        let container_runner = &get_container_manager();
+        let target_image = "test_create_new_image";
+        let base_image = "ubuntu";
+        let mut filter_map = HashMap::new();
+        filter_map.insert("test".to_string(), "test_create_new_image".to_string());
+
+        let _ = remove_image(container_runner, &target_image);
+        let image_filter = get_filter_vec(&filter_map);
+
+        let result = create_new_image(&ContainerData {
+            runner: container_runner,
+            cmd: "touch /test_create_new_image",
+            base_image,
+            target_image,
+            filters: &image_filter
+                .iter()
+                .map(AsRef::as_ref)
+                .collect::<Vec<&str>>(),
+            instructions: &get_instructions(&filter_map)
+                .iter()
+                .map(AsRef::as_ref)
+                .collect::<Vec<&str>>()
+                .as_slice(),
+            realtime_output: true,
+        });
+
+        let filter_images = find_images(
+            container_runner,
+            &image_filter
+                .iter()
+                .map(AsRef::as_ref)
+                .collect::<Vec<&str>>()
+                .as_slice(),
+        )
+        .unwrap();
+        assert!(!filter_images.is_empty());
+        let _ = remove_image(container_runner, &target_image);
+
+        assert!(result.is_ok());
     }
 }

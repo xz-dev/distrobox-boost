@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::config::get_distrobox_mode;
 use crate::container_tree::builder::build_container_trees;
 use crate::container_tree::distrobox_assemble_tree::{trees_to_distrobox_assemble, ContainerNode};
 use crate::distrobox::parser::assemble::ContainerAssembleData;
@@ -59,6 +60,7 @@ fn build_image_by_tree(container_runner: &str, tree: &mut ContainerNode) {
             &image,
             &tree.container_assemble_data.package_manager,
             packages,
+            get_distrobox_mode(),
         )
         .unwrap();
         tree.container_assemble_data.image = new_image.clone();

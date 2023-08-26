@@ -236,18 +236,22 @@ pub fn get_distrobox_packages<'a>(distro_id: &'a str, _distro_version: &'a str) 
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{get_container_manager, get_distrobox_mode, set_distrobox_mode};
+    use crate::config::get_container_manager;
     use crate::oci::command_helper::run_container;
     use crate::oci::image_builder::build_image;
 
     fn test_distrobox_packages(distro_id: &str, base_image: &str) {
         let container_runner = &get_container_manager();
         let image_name = format!("test_{}-distrobox", distro_id);
-        let tmp_distrobox_mode = get_distrobox_mode();
-        set_distrobox_mode(true);
 
-        let result = build_image(container_runner, &image_name, &base_image, &None, &vec![]);
-        set_distrobox_mode(tmp_distrobox_mode);
+        let result = build_image(
+            container_runner,
+            &image_name,
+            &base_image,
+            &None,
+            &vec![],
+            true,
+        );
 
         let image_name = match result {
             Ok(image_name) => {

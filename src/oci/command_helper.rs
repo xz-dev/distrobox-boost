@@ -337,24 +337,20 @@ mod tests {
     #[test]
     fn test_remove_image() {
         let container_runner = &get_container_manager();
-        let name = "test_case_remove_1";
+        let name = "test_case_remove_image_1";
         let image_name = "ubuntu";
-        let cmd = "ls /";
-
-        // First, run a container with the specified name
-        let _ = run_container(container_runner, name, image_name, cmd, true);
-
-        // Then, try to remove the container
-        assert!(remove_container(container_runner, name).is_ok());
+        run_container(container_runner, "", image_name, "ls /tmp", false).unwrap(); // for pull image
+        tag_image(container_runner, image_name, name).unwrap();
+        assert!(remove_image(container_runner, name).is_ok());
     }
 
     #[test]
-    fn test_remove_non_existent_container() {
+    fn test_remove_non_existent_image() {
         let container_runner = &get_container_manager();
-        let name = "test_case_remove_2";
+        let name = "test_case_remove_image_non_existent";
 
         // Try to remove a container that doesn't exist
-        assert!(remove_container(container_runner, name).is_err());
+        assert!(remove_image(container_runner, name).is_err());
     }
 
     #[test]
@@ -363,30 +359,47 @@ mod tests {
         let image_name = "ubuntu";
         let container_name = "test_find_images_single_container";
         let _ = remove_container(container_runner, container_name);
-        run_container(container_runner, container_name, image_name, "ls", true).unwrap();
+        run_container(container_runner, container_name, image_name, "ls", false).unwrap();
         let new_image_name = "test_find_images_single_image";
-        let new_image_name_2 = "test_find_images_single_image";
+        let new_image_other_name = "test_find_images_single_image_other";
+        let filters = vec!["label=test=find_images_single_filter"];
+
+        let clean = || {
+            for image in find_images(container_runner, &filters).unwrap() {
+                let _ = remove_image(container_runner, &image);
+            }
+
+            for image in find_images(
+                container_runner,
+                &vec!["label=test=find_images_single_filter_other"],
+            )
+            .unwrap()
+            {
+                let _ = remove_image(container_runner, &image);
+            }
+        };
+        clean();
+
         commit_container(
             container_runner,
             container_name,
             new_image_name,
-            &vec!["LABEL test=1"],
-        ).unwrap();
+            &vec!["LABEL test=find_images_single_filter"],
+        )
+        .unwrap();
         commit_container(
             container_runner,
             container_name,
-            new_image_name_2,
-            &vec!["LABEL test=2"],
+            new_image_other_name,
+            &vec!["LABEL test=find_images_single_filter_other"],
         )
         .unwrap();
-        let filters = vec!["label=test=1"];
 
         let result = find_images(container_runner, &filters);
 
-        assert!(result.unwrap() == vec![String::from(new_image_name)]);
+        assert!(result.unwrap().len() == 1);
         let _ = remove_container(container_runner, container_name);
-        let _ = remove_image(container_runner, new_image_name);
-        let _ = remove_image(container_runner, new_image_name_2);
+        clean();
     }
 
     #[test]
@@ -395,22 +408,48 @@ mod tests {
         let image_name = "ubuntu";
         let container_name = "test_find_images_multiple_container";
         let _ = remove_container(container_runner, container_name);
-        run_container(container_runner, container_name, image_name, "ls", true).unwrap();
+        run_container(container_runner, container_name, image_name, "ls", false).unwrap();
+
         let new_image_name = "test_find_images_multiple_image";
+        let new_image_other_name = "test_find_images_multiple_other_image";
+        let filters = vec!["label=test=find_images_multiple_filters", "label=test2=0"];
+
+        let clean = || {
+            for image in find_images(container_runner, &filters).unwrap() {
+                let _ = remove_image(container_runner, &image);
+            }
+            for image in find_images(
+                container_runner,
+                &vec!["label=test=find_images_multiple_filters", "label=test2=1"],
+            )
+            .unwrap()
+            {
+                let _ = remove_image(container_runner, &image);
+            }
+        };
+        clean();
+
         commit_container(
             container_runner,
             container_name,
             new_image_name,
-            &vec!["LABEL test=1", "LABEL dev=2"],
+            &vec!["LABEL test=find_images_multiple_filters", "LABEL test2=0"],
         )
         .unwrap();
-        let filters = vec!["label=test=1", "label=dev=2"];
+        commit_container(
+            container_runner,
+            container_name,
+            new_image_other_name,
+            &vec!["LABEL test=find_images_multiple_filters", "LABEL test2=1"],
+        )
+        .unwrap();
 
         let result = find_images(container_runner, &filters);
 
-        assert!(result.unwrap() == vec![String::from(new_image_name)]);
+        println!("{:?}", result);
+        assert!(result.unwrap().len() == 1);
         let _ = remove_container(container_runner, container_name);
-        let _ = remove_image(container_runner, new_image_name);
+        clean();
     }
 
     #[test]
@@ -421,7 +460,6 @@ mod tests {
         let result = find_images(container_runner, &filters);
 
         assert!(result.unwrap().is_empty());
-        // 校验返回为空列表
     }
 
     #[test]
@@ -432,7 +470,6 @@ mod tests {
         let result = find_images(container_runner, &filters);
 
         assert!(result.is_err());
-        // 校验错误原因
     }
 
     #[test]
