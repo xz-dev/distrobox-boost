@@ -158,11 +158,11 @@ pub fn unpin_image(container_runner: &str, image_name: &str) -> Result<String, C
 
 pub fn build_image_from_dockerfile_simple(
     container_runner: &str,
-    name: &str,
+    image_name: &str,
     dockerfile_path: &str,
     context: &str,
 ) -> Result<CommandOutput, CommandError> {
-    let args = vec!["build", "-t", name, "-f", dockerfile_path, context];
+    let args = vec!["build", "-t", image_name, "-f", dockerfile_path, context];
     let output = run_command(container_runner, &args, true)?;
     Ok(output)
 }
@@ -171,6 +171,7 @@ pub fn build_image_from_dockerfile_simple(
 mod tests {
     use super::*;
     use crate::config::get_container_manager;
+    use std::env;
 
     #[test]
     fn test_valid_command() {
@@ -562,5 +563,22 @@ mod tests {
             result.is_ok(),
             "Failed to unpin the stopped ubuntu container"
         );
+    }
+
+    #[test]
+    fn test_build_image_from_dockerfile_simple() {
+        let container_runner = &get_container_manager();
+        let name = "test_build_image_from_dockerfile_simple";
+        let mut path = env::current_dir().unwrap();
+        path.push("tests/files/example_dockerfile_build_image");
+        let dockerfile_path = path.to_str().unwrap().to_owned();
+        let context = ".";
+        let _ = remove_image(container_runner, name);
+        let result =
+            build_image_from_dockerfile_simple(container_runner, name, &dockerfile_path, context);
+        assert!(result.is_ok());
+        let cmd = "fish -c 'ls /build_image_dockerfile_test'";
+        assert!(run_container(container_runner, "", name, cmd, true).is_ok());
+        let _ = remove_image(container_runner, name);
     }
 }
