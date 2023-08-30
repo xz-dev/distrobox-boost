@@ -8,7 +8,34 @@ use crate::utils::mutex_lock::*;
 use lazy_static::lazy_static;
 use std::collections::hash_map::{DefaultHasher, HashMap};
 use std::hash::{Hash, Hasher};
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+pub fn pre_build_image(
+    container_runner: &str,
+    target_image: &str,
+    base_image: &str,
+) -> Result<String, CommandError> {
+    if base_image.starts_with("dockerfile://") {
+        println!("Build dockerfile: {}", &base_image);
+        let image_name = format!("distrobox-dockerfile_{}", &target_image);
+        let dockerfile_path = &base_image[12..];
+        let dockerfile_content_path = Path::new(dockerfile_path)
+            .parent()
+            .unwrap()
+            .to_str()
+            .unwrap();
+        let _ = build_image_from_dockerfile_simple(
+            container_runner,
+            &image_name,
+            &dockerfile_path,
+            dockerfile_content_path,
+        )?;
+        Ok(image_name.to_string())
+    } else {
+        Ok(base_image.to_string())
+    }
+}
 
 pub fn build_image(
     container_runner: &str,
@@ -18,8 +45,9 @@ pub fn build_image(
     packages: &Vec<String>,
     distrobox_mode: bool,
 ) -> Result<String, CommandError> {
+    let base_image = pre_build_image(container_runner, target_image, base_image)?;
     let cmd = "cat /etc/os-release".to_string();
-    let output = run_container(container_runner, "", base_image, &cmd, true)?;
+    let output = run_container(container_runner, "", &base_image, &cmd, true)?;
     let distro_info = parse_os_release(&output.stdout).unwrap();
     let package_manager = request_package_manager
         .clone()

@@ -22,7 +22,7 @@ pub struct ContainerAssembleData {
 
     // extra fields for the tool
     pub package_manager: Option<String>,
-    pub pre_build_image: Option<String>,
+    pub pre_build_cmd: Option<String>,
 }
 impl Default for ContainerAssembleData {
     fn default() -> Self {
@@ -47,7 +47,7 @@ impl Default for ContainerAssembleData {
             unshare_ipc: None,
             unshare_netns: None,
             package_manager: None,
-            pre_build_image: None,
+            pre_build_cmd: None,
         }
     }
 }
@@ -97,7 +97,7 @@ pub fn parse_distrobox_assemble(content: &str) -> HashMap<String, ContainerAssem
                     unshare_ipc: get_value_as_bool_with_default(&entry, "unshare_ipc"),
                     unshare_netns: get_value_as_bool_with_default(&entry, "unshare_netns"),
                     package_manager: entry.get("package_manager").map(|h| h.join(" ")),
-                    pre_build_image: entry.get("pre_build_image").map(|h| h.join(";")),
+                    pre_build_cmd: entry.get("pre_build_cmd").map(|h| h.join(";")),
                 },
             )
         })
@@ -168,7 +168,7 @@ pub fn assemble_distrobox_to_str(data: &HashMap<String, ContainerAssembleData>) 
         if let Some(package_manager) = &assemble_data.package_manager {
             single_ini_data.push(("package_manager".to_string(), package_manager.clone()));
         }
-        if let Some(pre_build_image) = &assemble_data.pre_build_image {
+        if let Some(pre_build_image) = &assemble_data.pre_build_cmd {
             single_ini_data.push(("pre_build_image".to_string(), pre_build_image.clone()));
         }
 

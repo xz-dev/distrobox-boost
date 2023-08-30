@@ -11,21 +11,6 @@ use crate::utils::command_helper::run_command;
 fn build_image_by_tree(container_runner: &str, tree: &mut ContainerNode) {
     fn tree_to_image_map(container_runner: &str, tree: &mut ContainerNode, node_level: usize) {
         let image = &tree.container_assemble_data.image.clone();
-        if image.starts_with("dockerfile://") {
-            println!("Build dockerfile: {}", &image);
-            let image_name = format!("distrobox-dockerfile_{}", &tree.container_name);
-            let dockerfile_path = &image[12..];
-            let output = build_image_from_dockerfile_simple(
-                container_runner,
-                &image_name,
-                &dockerfile_path,
-                ".",
-            )
-            .unwrap();
-            if output.status.is_some_and(|status| status == 0) {
-                tree.container_assemble_data.image = image_name;
-            }
-        }
         let image = &tree.container_assemble_data.image.clone();
         println!("Build image: {}", &image);
         let empty_vec = vec![];
@@ -40,15 +25,11 @@ fn build_image_by_tree(container_runner: &str, tree: &mut ContainerNode) {
             "Build container name: {} to {}",
             &tree.container_name, &new_image
         );
-        if tree.container_assemble_data.pre_build_image.is_some() {
-            let pre_build_image = tree
-                .container_assemble_data
-                .pre_build_image
-                .clone()
-                .unwrap();
-            println!("Pre build image: {}", &pre_build_image);
-            let command_name = &pre_build_image.split_whitespace().next().unwrap();
-            let args = &pre_build_image
+        if tree.container_assemble_data.pre_build_cmd.is_some() {
+            let pre_build_cmd = tree.container_assemble_data.pre_build_cmd.clone().unwrap();
+            println!("Pre build command: {}", &pre_build_cmd);
+            let command_name = &pre_build_cmd.split_whitespace().next().unwrap();
+            let args = &pre_build_cmd
                 .split_whitespace()
                 .skip(1)
                 .collect::<Vec<&str>>();
