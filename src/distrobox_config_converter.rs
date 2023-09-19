@@ -1,16 +1,14 @@
 use std::collections::HashMap;
 
-use crate::config::get_distrobox_mode;
+use crate::config::{get_distrobox_mode, get_distrobox_boost_image_prefix};
 use crate::container_tree::builder::build_container_trees;
 use crate::container_tree::distrobox_assemble_tree::{trees_to_distrobox_assemble, ContainerNode};
 use crate::distrobox::parser::assemble::ContainerAssembleData;
-use crate::oci::command_helper::build_image_from_dockerfile_simple;
 use crate::oci::image_builder::build_image;
 use crate::utils::command_helper::run_command;
 
 fn build_image_by_tree(container_runner: &str, tree: &mut ContainerNode) {
     fn tree_to_image_map(container_runner: &str, tree: &mut ContainerNode, node_level: usize) {
-        let image = &tree.container_assemble_data.image.clone();
         let image = &tree.container_assemble_data.image.clone();
         println!("Build image: {}", &image);
         let empty_vec = vec![];
@@ -20,7 +18,7 @@ fn build_image_by_tree(container_runner: &str, tree: &mut ContainerNode) {
             .as_ref()
             .unwrap_or(&empty_vec);
         println!("Packages: {:?}", &packages);
-        let new_image = format!("distrobox-{}-{}", node_level, &image);
+        let new_image = format!("{}/release/{}", &get_distrobox_boost_image_prefix(), &image);
         println!(
             "Build container name: {} to {}",
             &tree.container_name, &new_image
@@ -41,6 +39,7 @@ fn build_image_by_tree(container_runner: &str, tree: &mut ContainerNode) {
             &image,
             &tree.container_assemble_data.package_manager,
             packages,
+            &get_distrobox_boost_image_prefix(),
             get_distrobox_mode(),
         )
         .unwrap();

@@ -1,17 +1,33 @@
 use crate::distrobox::parser::config::get_distrobox_config;
+use lazy_static::lazy_static;
+use std::sync::Mutex;
 
 use std::process::Command;
 
-static mut DISTROBOX_MODE: bool = true;
+lazy_static! {
+    static ref DISTROBOX_MODE: Mutex<bool> = Mutex::new(true);
+    static ref DISTROBOX_BOOST_IMAGE_PREFIX: Mutex<String> =
+        Mutex::new("distrobox-boost".to_string());
+}
 
 pub fn get_distrobox_mode() -> bool {
-    unsafe { DISTROBOX_MODE }
+    DISTROBOX_MODE.lock().unwrap().clone()
 }
 
 pub fn set_distrobox_mode(mode: bool) {
-    unsafe {
-        DISTROBOX_MODE = mode;
-    }
+    *DISTROBOX_MODE.lock().unwrap() = mode;
+}
+
+pub fn get_distrobox_boost_image_prefix() -> String {
+    DISTROBOX_BOOST_IMAGE_PREFIX.lock().unwrap().clone()
+}
+
+pub fn set_distrobox_boost_image_prefix(image_prefix: &str) {
+    *DISTROBOX_BOOST_IMAGE_PREFIX.lock().unwrap() = image_prefix.to_string();
+}
+
+pub fn get_distrobox_boost_test_image_prefix() -> String {
+    format!("{}-test", &get_distrobox_boost_image_prefix())
 }
 
 fn command_exists(command: &str) -> bool {

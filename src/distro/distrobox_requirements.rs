@@ -236,7 +236,7 @@ pub fn get_distrobox_packages<'a>(distro_id: &'a str, _distro_version: &'a str) 
 
 #[cfg(test)]
 mod tests {
-    use crate::config::get_container_manager;
+    use crate::config::{get_container_manager, get_distrobox_boost_test_image_prefix};
     use crate::oci::command_helper::run_container;
     use crate::oci::image_builder::build_image;
 
@@ -250,6 +250,7 @@ mod tests {
             &base_image,
             &None,
             &vec![],
+            &get_distrobox_boost_test_image_prefix(),
             true,
         );
 

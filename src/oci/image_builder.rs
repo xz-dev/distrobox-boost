@@ -15,10 +15,11 @@ pub fn pre_build_image(
     container_runner: &str,
     target_image: &str,
     base_image: &str,
+    image_prefix: &str,
 ) -> Result<String, CommandError> {
     if base_image.starts_with("dockerfile://") {
         println!("Build dockerfile: {}", &base_image);
-        let image_name = format!("distrobox-dockerfile_{}", &target_image);
+        let image_name = format!("{}/dockerfile/{}", &image_prefix, &target_image);
         let dockerfile_path = &base_image[12..];
         let dockerfile_content_path = Path::new(dockerfile_path)
             .parent()
@@ -43,16 +44,21 @@ pub fn build_image(
     base_image: &str,
     request_package_manager: &Option<String>,
     packages: &Vec<String>,
+    image_prefix: &str,
     distrobox_mode: bool,
 ) -> Result<String, CommandError> {
-    let base_image = pre_build_image(container_runner, target_image, base_image)?;
+    let base_image = pre_build_image(container_runner, target_image, base_image, image_prefix)?;
     let cmd = "cat /etc/os-release".to_string();
     let output = run_container(container_runner, "", &base_image, &cmd, true)?;
     let distro_info = parse_os_release(&output.stdout).unwrap();
     let package_manager = request_package_manager
         .clone()
         .unwrap_or(get_package_manager(&distro_info.0, &distro_info.1));
-    let slim_image_name = target_image.replace(":", "-").replace("/", "-");
+    let slim_image_name = format!(
+        "{}/builder/{}",
+        image_prefix,
+        target_image.replace(":", "-").replace("/", "_")
+    );
 
     let mut filter_map = HashMap::new();
     filter_map.insert("image".to_string(), base_image.to_string());
@@ -292,7 +298,7 @@ fn get_seconds() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{get_container_manager, set_distrobox_mode};
+    use crate::config::{get_container_manager, set_distrobox_mode, get_distrobox_boost_test_image_prefix};
 
     #[test]
     fn test_build_image() {
@@ -307,6 +313,7 @@ mod tests {
             base_image,
             &None,
             &packages,
+            &get_distrobox_boost_test_image_prefix(),
             false,
         );
 
@@ -335,6 +342,7 @@ mod tests {
             base_image,
             &None,
             &packages,
+            &get_distrobox_boost_test_image_prefix(),
             true,
         )
         .unwrap();
@@ -374,6 +382,7 @@ mod tests {
             base_image,
             &None,
             &packages,
+            &get_distrobox_boost_test_image_prefix(),
             false,
         )
         .unwrap();
@@ -414,6 +423,7 @@ mod tests {
             base_image,
             &None,
             &packages,
+            &get_distrobox_boost_test_image_prefix(),
             true,
         )
         .unwrap();

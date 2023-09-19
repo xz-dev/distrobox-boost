@@ -60,6 +60,8 @@ struct Args {
 
     #[clap(short, long)]
     non_distrobox: bool,
+    #[clap(short, long)]
+    image_prefix: Option<String>,
 
     #[clap(short, long)]
     pin: bool,
@@ -126,6 +128,9 @@ fn main() {
     if args.non_distrobox {
         set_distrobox_mode(false);
         println!("Non distrobox mode");
+    }
+    if let Some(image_prefix) = args.image_prefix {
+        set_distrobox_boost_image_prefix(&image_prefix);
     }
 
     let mut distrobox_assemble_data_map = HashMap::new();
