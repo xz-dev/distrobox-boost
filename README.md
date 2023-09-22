@@ -2,7 +2,7 @@
 
 [![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
 
-A container image builder tool for Open Container Initiative (distrobox/toolbox, also podman/docker).  
+A container runtimer wrapper for OCI (distrobox/toolbox, also podman/docker).
 
 Distrobox is good enough in running softwore, but compare to Package Manager such as APT, pacman, etc, it miss a faster, agile and Cloud Native way to use Open Container Initiative (OCI).
 
