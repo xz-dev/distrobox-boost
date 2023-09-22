@@ -8,5 +8,5 @@ name = "distrobox-boost"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4.3.19", features = ["derive"] }
+clap = { version = "4.4.4", features = ["derive"] }
 lazy_static = "1.4.0"

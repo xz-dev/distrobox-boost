@@ -4,6 +4,7 @@ mod distro;
 mod distrobox;
 mod distrobox_config_converter;
 mod oci;
+mod set_similarity;
 mod utils;
 
 use std::collections::HashMap;

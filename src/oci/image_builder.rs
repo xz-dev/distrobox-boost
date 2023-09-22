@@ -71,17 +71,21 @@ pub fn build_image(
         filter_map: &HashMap<String, String>,
         realtime_output: bool,
     ) -> Result<(), CommandError> {
+        let filter_map = filter_map
+            .iter()
+            .map(|(k, v)| (k.clone(), Some(v.clone())))
+            .collect();
         run_and_commit_image(&ContainerData {
             runner,
             cmd,
             target_image,
             base_image,
-            filters: &get_filter_vec(filter_map)
+            filters: &get_filter_vec(&filter_map)
                 .iter()
                 .map(AsRef::as_ref)
                 .collect::<Vec<&str>>()
                 .as_slice(),
-            instructions: &get_instructions(filter_map)
+            instructions: &get_instructions(&filter_map)
                 .iter()
                 .map(AsRef::as_ref)
                 .collect::<Vec<&str>>()
@@ -181,18 +185,26 @@ pub fn build_image(
     Ok(target_image.to_string())
 }
 
-fn get_filter_vec(filter_map: &HashMap<String, String>) -> Vec<String> {
+fn get_filter_vec(filter_map: &HashMap<String, Option<String>>) -> Vec<String> {
     let mut filter_vec = Vec::new();
     for (key, value) in filter_map {
-        filter_vec.push(format!("label={}={}", key, value));
+        if let Some(value) = value {
+            filter_vec.push(format!("label={}={}", key, value));
+        } else {
+            filter_vec.push(format!("label={}", key));
+        }
     }
     filter_vec
 }
 
-fn get_instructions(filter_map: &HashMap<String, String>) -> Vec<String> {
+fn get_instructions(filter_map: &HashMap<String, Option<String>>) -> Vec<String> {
     let mut instructions = Vec::new();
     for (key, value) in filter_map {
-        instructions.push(format!("LABEL {}={}", key, value));
+        if let Some(value) = value {
+            instructions.push(format!("LABEL {}={}", key, value));
+        } else {
+            instructions.push(format!("LABEL {}", key));
+        }
     }
     instructions.push(format!("LABEL updated_at={}", get_seconds()));
     instructions
@@ -210,6 +222,64 @@ pub struct ContainerData<'a> {
     pub filters: &'a [&'a str],
     pub instructions: &'a [&'a str],
     pub realtime_output: bool,
+}
+
+fn package_tag_to_list(tag_string: &str) -> Vec<String> {
+    tag_string.split(";").map(|s| s.to_string()).collect()
+}
+
+fn get_image_packages(
+    container_runner: &str,
+    image_name: &str,
+) -> Result<Vec<String>, CommandError> {
+    let package_inspect_format = "{{.Labels.packages}}";
+    let packages_tag = format!(
+        "{};{}",
+        inspect_image(
+            container_runner,
+            image_name,
+            &package_inspect_format.replace("packages", "packages0"),
+        )?,
+        inspect_image(
+            container_runner,
+            image_name,
+            &package_inspect_format.replace("packages", "packages1"),
+        )?
+    );
+    Ok(package_tag_to_list(&packages_tag))
+}
+
+fn get_closest_image_id(
+    container_runner: &str,
+    filter_map: &HashMap<String, Option<String>>,
+) -> Option<String> {
+    let score_keys = vec!["packages0", "package1"];
+    let filter_map = filter_map
+        .iter()
+        .map(|(k, v)| {
+            (
+                k.clone(),
+                if score_keys.contains(&k.as_str()) {
+                    None
+                } else {
+                    v.clone()
+                },
+            )
+        })
+        .collect();
+    let image_id_list = find_images(
+        container_runner,
+        &get_filter_vec(&filter_map)
+            .iter()
+            .map(AsRef::as_ref)
+            .collect::<Vec<&str>>()
+            .as_slice(),
+    )
+    .unwrap();
+    let mut image_id_list = image_id_list.to_vec();
+    image_id_list.sort();
+    image_id_list.reverse();
+    image_id_list.first().cloned()
 }
 
 fn recommit_image(
@@ -298,7 +368,9 @@ fn get_seconds() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{get_container_manager, set_distrobox_mode, get_distrobox_boost_test_image_prefix};
+    use crate::config::{
+        get_container_manager, get_distrobox_boost_test_image_prefix, set_distrobox_mode,
+    };
 
     #[test]
     fn test_build_image() {
@@ -449,7 +521,10 @@ mod tests {
         let target_image = "test_create_new_image";
         let base_image = "ubuntu";
         let mut filter_map = HashMap::new();
-        filter_map.insert("test".to_string(), "test_create_new_image".to_string());
+        filter_map.insert(
+            "test".to_string(),
+            Some("test_create_new_image".to_string()),
+        );
 
         let _ = remove_image(container_runner, &target_image);
         let image_filter = get_filter_vec(&filter_map);
