@@ -167,7 +167,11 @@ pub fn build_image_from_dockerfile_simple(
     Ok(output)
 }
 
-pub fn inspect_image(container_runner: &str, image_name: &str, format: &str) -> Result<String, CommandError> {
+pub fn inspect_image(
+    container_runner: &str,
+    image_name: &str,
+    format: &str,
+) -> Result<String, CommandError> {
     let format_arg = format!("--format={{{{{}}}}}", format);
     let args = vec!["inspect", &format_arg, image_name];
     let output = run_command(container_runner, &args, false)?;
@@ -182,7 +186,7 @@ pub fn inspect_image(container_runner: &str, image_name: &str, format: &str) -> 
 mod tests {
     use super::*;
     use crate::config::get_container_manager;
-    use std::{env, result};
+    use std::env;
 
     #[test]
     fn test_valid_command() {
@@ -351,7 +355,7 @@ mod tests {
         let container_runner = &get_container_manager();
         let name = "test_case_remove_image_1";
         let image_name = "ubuntu";
-        run_container(container_runner, "", image_name, "ls", false).unwrap();  // for pull image
+        run_container(container_runner, "", image_name, "ls", false).unwrap(); // for pull image
         tag_image(container_runner, image_name, name).unwrap();
         assert!(remove_image(container_runner, name).is_ok());
     }
@@ -597,14 +601,11 @@ mod tests {
     fn test_inspect_image() {
         let container_runner = &get_container_manager();
         let image_name = "ubuntu";
-        run_container(container_runner, "", image_name, "ls", false).unwrap();  // for pull image
+        run_container(container_runner, "", image_name, "ls", false).unwrap(); // for pull image
 
         let result = inspect_image(container_runner, image_name, ".Id");
         assert!(result.is_ok());
-        assert!(
-            !result.unwrap().is_empty(),
-            "Failed to inspect image"
-        );
+        assert!(!result.unwrap().is_empty(), "Failed to inspect image");
     }
 
     #[test]
@@ -620,7 +621,7 @@ mod tests {
     fn test_inspect_image_invalid_format() {
         let container_runner = &get_container_manager();
         let image_name = "ubuntu";
-        run_container(container_runner, "", image_name, "ls", false).unwrap();  // for pull image
+        run_container(container_runner, "", image_name, "ls", false).unwrap(); // for pull image
 
         let result = inspect_image(container_runner, image_name, "112233");
         assert!(result.is_err());
@@ -630,7 +631,7 @@ mod tests {
     fn test_inspect_image_nonexistent_config() {
         let container_runner = &get_container_manager();
         let image_name = "ubuntu";
-        run_container(container_runner, "", image_name, "ls", false).unwrap();  // for pull image
+        run_container(container_runner, "", image_name, "ls", false).unwrap(); // for pull image
 
         let result = inspect_image(container_runner, image_name, ".Config.Labels.Non");
         assert!(result.is_ok());

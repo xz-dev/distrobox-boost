@@ -75,15 +75,9 @@ pub fn parse_list_packages_command_output(
             .skip(1)
             .filter_map(|line| {
                 // Skip the first line
-                let mut parts = line.split('/');
+                let mut parts = line.split_whitespace();
                 if let Some(name) = parts.next() {
-                    let version = parts
-                        .next()
-                        .unwrap_or("")
-                        .split_whitespace()
-                        .next()
-                        .unwrap_or("")
-                        .to_string();
+                    let version = parts.next().unwrap_or_default().to_string();
                     Some((name.to_string(), version))
                 } else {
                     None
@@ -107,11 +101,11 @@ pub fn parse_list_packages_command_output(
             .skip(2)
             .filter_map(|line| {
                 // Skip the first 2 lines
-                let mut parts = line.split('|');
-                if let (Some(name), Some(version)) =
-                    (parts.nth(1).map(str::trim), parts.nth(2).map(str::trim))
-                {
-                    Some((name.to_string(), version.to_string()))
+                let mut parts = line.split('|').into_iter().map(|x| x.trim());
+                if parts.next().is_some_and(|x| x == "i" || x == "i+") {
+                    let name = parts.next().unwrap().to_string();
+                    let version = parts.nth(1).unwrap().to_string();
+                    Some((name, version))
                 } else {
                     None
                 }
