@@ -15,7 +15,9 @@ use crate::distrobox::parser::assemble::{
     assemble_distrobox_to_str, parse_distrobox_assemble, ContainerAssembleData,
 };
 use crate::distrobox_config_converter::build_distrobox_assemble_data;
-use crate::oci::command_helper::{pin_image, unpin_image};
+use crate::oci::command_helper::{
+    export_images, import_images, list_images_by_prefix, pin_image, unpin_image,
+};
 use clap::Parser;
 
 fn build(
@@ -46,28 +48,36 @@ struct Args {
     #[clap(short, long, allow_hyphen_values = true, value_terminator = ",")]
     assemble: Option<Vec<String>>,
 
-    #[clap(short, long)]
-    input: Option<String>,
+    #[clap(short, long, num_args = 1..)]
+    input: Option<Vec<String>>,
 
     #[clap(short, long)]
     output: Option<String>,
 
-    #[clap(short, long)]
+    #[clap(short = 'O', long)]
     output_dir: Option<String>,
 
     #[arg(num_args(0..))]
     #[clap(short, long)]
     pkg: Option<Vec<String>>,
 
-    #[clap(short, long)]
+    #[clap(long)]
     non_distrobox: bool,
-    #[clap(short, long)]
+    #[clap(short = 'I', long)]
     image_prefix: Option<String>,
 
-    #[clap(short, long)]
+    #[clap(long)]
     pin: bool,
-    #[clap(short, long)]
+    #[clap(long)]
     unpin: bool,
+
+    /// Export all distrobox-boost images to a tar file
+    #[clap(long, value_name = "PATH")]
+    export: Option<String>,
+
+    /// Import images from a tar file
+    #[clap(long, value_name = "PATH")]
+    import: Option<String>,
 
     #[clap(long, allow_hyphen_values = true, value_terminator = ",")]
     enter: Option<Vec<String>>,
@@ -104,6 +114,84 @@ fn main() {
     } else {
         package.clone()
     };
+    // Handle export command early (independent operation)
+    if let Some(ref export_path) = args.export {
+        if let Some(ref image_prefix) = args.image_prefix {
+            set_distrobox_boost_image_prefix(image_prefix);
+        }
+
+        let images: Vec<String> = if let Some(ref input_files) = args.input {
+            // Export only images from specified ini files (without building)
+            let mut all_images = Vec::new();
+            for input_file in input_files {
+                let content = match std::fs::read_to_string(input_file) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!("Failed to read {}: {}", input_file, e);
+                        std::process::exit(1);
+                    }
+                };
+                let assemble_data = parse_distrobox_assemble(&content);
+                for data in assemble_data.values() {
+                    if !all_images.contains(&data.image) {
+                        all_images.push(data.image.clone());
+                    }
+                }
+            }
+            println!("Exporting images from {} ini file(s)", input_files.len());
+            all_images
+        } else {
+            // Export all images with prefix
+            let prefix = get_distrobox_boost_image_prefix();
+            println!("Exporting images with prefix: {}", prefix);
+            match list_images_by_prefix(&get_container_manager(), &prefix) {
+                Ok(imgs) => imgs,
+                Err(e) => {
+                    eprintln!("Failed to list images: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        };
+
+        if images.is_empty() {
+            eprintln!("No images found to export");
+            std::process::exit(1);
+        }
+        println!("Found {} images:", images.len());
+        for image in &images {
+            println!("  - {}", image);
+        }
+        match export_images(&get_container_manager(), &images, export_path) {
+            Ok(()) => {
+                println!("Successfully exported to {}", export_path);
+            }
+            Err(e) => {
+                eprintln!("Export failed: {}", e);
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+
+    // Handle import command (independent operation)
+    if let Some(ref import_path) = args.import {
+        println!("Importing images from: {}", import_path);
+
+        match import_images(&get_container_manager(), import_path) {
+            Ok(output) => {
+                println!("Successfully imported images");
+                if !output.is_empty() {
+                    println!("{}", output.trim());
+                }
+            }
+            Err(e) => {
+                eprintln!("Import failed: {}", e);
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+
     if name.is_none() && args.input.is_none() && args.assemble.is_none() {
         println!("Use --help to get help");
         return;
@@ -130,8 +218,8 @@ fn main() {
         set_distrobox_mode(false);
         println!("Non distrobox mode");
     }
-    if let Some(image_prefix) = args.image_prefix {
-        set_distrobox_boost_image_prefix(&image_prefix);
+    if let Some(ref image_prefix) = args.image_prefix {
+        set_distrobox_boost_image_prefix(image_prefix);
     }
 
     let mut distrobox_assemble_data_map = HashMap::new();
@@ -163,9 +251,11 @@ fn main() {
         distrobox_assemble_data_map.extend(parse_distrobox_assemble(&assemble_content));
     }
 
-    if let Some(input) = args.input {
-        let content = std::fs::read_to_string(&input).unwrap();
-        distrobox_assemble_data_map.extend(parse_distrobox_assemble(&content));
+    if let Some(ref inputs) = args.input {
+        for input in inputs {
+            let content = std::fs::read_to_string(input).unwrap();
+            distrobox_assemble_data_map.extend(parse_distrobox_assemble(&content));
+        }
     }
 
     let new_distrobox_assemble_data = build(&distrobox_assemble_data_map, args.pkg);

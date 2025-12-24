@@ -182,6 +182,77 @@ pub fn inspect_image(
     })
 }
 
+pub fn list_images_by_prefix(
+    container_runner: &str,
+    prefix: &str,
+) -> Result<Vec<String>, CommandError> {
+    let filter = format!("reference={}/*", prefix);
+    let args = vec![
+        "images",
+        "--filter",
+        &filter,
+        "--format",
+        "{{.Repository}}:{{.Tag}}",
+    ];
+    let output = run_command(container_runner, &args, false)?;
+
+    let images: Vec<String> = output
+        .stdout
+        .lines()
+        .filter(|s| !s.is_empty() && !s.contains("<none>"))
+        .map(|s| s.to_string())
+        .collect();
+
+    Ok(images)
+}
+
+pub fn export_images(
+    container_runner: &str,
+    images: &[String],
+    output_path: &str,
+) -> Result<(), CommandError> {
+    if images.is_empty() {
+        return Err(CommandError {
+            stdout: String::new(),
+            stderr: "No images to export".to_string(),
+            status: Some(1),
+            inner: None,
+        });
+    }
+
+    // Build save command: podman uses -m for multi-image, docker doesn't need it
+    let mut args: Vec<&str> = vec!["save"];
+    if container_runner.contains("podman") {
+        args.push("-m");
+    }
+    args.push("-o");
+    args.push(output_path);
+    for image in images {
+        args.push(image);
+    }
+
+    run_command(container_runner, &args, true)?;
+    Ok(())
+}
+
+pub fn import_images(
+    container_runner: &str,
+    input_path: &str,
+) -> Result<String, CommandError> {
+    if !std::path::Path::new(input_path).exists() {
+        return Err(CommandError {
+            stdout: String::new(),
+            stderr: format!("File not found: {}", input_path),
+            status: Some(1),
+            inner: None,
+        });
+    }
+
+    let args = vec!["load", "-i", input_path];
+    let output = run_command(container_runner, &args, true)?;
+    Ok(output.stdout)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -639,5 +710,138 @@ mod tests {
             result.unwrap().is_empty(),
             "Failed to inspect nonexistent config"
         );
+    }
+
+    #[test]
+    fn test_list_images_by_prefix() {
+        let container_runner = &get_container_manager();
+        // Test with a non-existent prefix - should return empty list
+        let result = list_images_by_prefix(container_runner, "nonexistent-prefix-12345");
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_list_images_by_prefix_with_images() {
+        let container_runner = &get_container_manager();
+        let test_id = format!("{}", std::process::id());
+        let test_prefix = format!("distrobox-boost-test-list-{}", test_id);
+        let image_name = "ubuntu";
+        let container_name = format!("test_list_images_container_{}", test_id);
+        let test_image = format!("{}/test:latest", test_prefix);
+
+        // Clean up first (in case of previous failed run)
+        let _ = remove_container(container_runner, &container_name);
+        let _ = remove_image(container_runner, &test_image);
+
+        // Create a test image with the prefix
+        run_container(container_runner, &container_name, image_name, "ls", false).unwrap();
+        commit_container(container_runner, &container_name, &test_image, &vec![]).unwrap();
+
+        // List images with the prefix
+        let result = list_images_by_prefix(container_runner, &test_prefix);
+        assert!(result.is_ok());
+        let images = result.unwrap();
+        assert!(images.len() >= 1, "Should find at least one image");
+        assert!(
+            images.iter().any(|img| img.contains(&test_prefix)),
+            "Should contain image with test prefix"
+        );
+
+        // Clean up
+        let _ = remove_container(container_runner, &container_name);
+        let _ = remove_image(container_runner, &test_image);
+    }
+
+    #[test]
+    fn test_export_images_empty() {
+        let container_runner = &get_container_manager();
+        let result = export_images(container_runner, &[], "/tmp/test_empty.tar");
+        assert!(result.is_err(), "Should fail with empty image list");
+    }
+
+    #[test]
+    fn test_export_images() {
+        let container_runner = &get_container_manager();
+        let test_id = format!("{}", std::process::id());
+        let test_prefix = format!("distrobox-boost-test-export-{}", test_id);
+        let image_name = "ubuntu";
+        let container_name = format!("test_export_images_container_{}", test_id);
+        let export_path = format!("/tmp/distrobox_boost_test_export_{}.tar", test_id);
+        let test_image = format!("{}/test:latest", test_prefix);
+
+        // Clean up first (in case of previous failed run)
+        let _ = remove_container(container_runner, &container_name);
+        let _ = remove_image(container_runner, &test_image);
+        let _ = std::fs::remove_file(&export_path);
+
+        // Create a test image
+        run_container(container_runner, &container_name, image_name, "ls", false).unwrap();
+        commit_container(container_runner, &container_name, &test_image, &vec![]).unwrap();
+
+        // Export the image
+        let images = vec![test_image.clone()];
+        let result = export_images(container_runner, &images, &export_path);
+        assert!(result.is_ok(), "Export should succeed: {:?}", result.err());
+
+        // Verify file exists
+        assert!(
+            std::path::Path::new(&export_path).exists(),
+            "Export file should exist"
+        );
+
+        // Clean up
+        let _ = remove_container(container_runner, &container_name);
+        let _ = remove_image(container_runner, &test_image);
+        let _ = std::fs::remove_file(&export_path);
+    }
+
+    #[test]
+    fn test_import_images_nonexistent_file() {
+        let container_runner = &get_container_manager();
+        let result = import_images(container_runner, "/nonexistent/path/file.tar");
+        assert!(result.is_err(), "Should fail with nonexistent file");
+    }
+
+    #[test]
+    fn test_import_images() {
+        let container_runner = &get_container_manager();
+        let test_id = format!("{}", std::process::id());
+        let test_prefix = format!("distrobox-boost-test-import-{}", test_id);
+        let image_name = "ubuntu";
+        let container_name = format!("test_import_images_container_{}", test_id);
+        let export_path = format!("/tmp/distrobox_boost_test_import_{}.tar", test_id);
+        let test_image = format!("{}/test:latest", test_prefix);
+
+        // Clean up first (in case of previous failed run)
+        let _ = remove_container(container_runner, &container_name);
+        let _ = remove_image(container_runner, &test_image);
+        let _ = std::fs::remove_file(&export_path);
+
+        // Create and export a test image
+        run_container(container_runner, &container_name, image_name, "ls", false).unwrap();
+        commit_container(container_runner, &container_name, &test_image, &vec![]).unwrap();
+        let images = vec![test_image.clone()];
+        export_images(container_runner, &images, &export_path).unwrap();
+
+        // Remove the image
+        let _ = remove_image(container_runner, &test_image);
+
+        // Import the image
+        let result = import_images(container_runner, &export_path);
+        assert!(result.is_ok(), "Import should succeed: {:?}", result.err());
+
+        // Verify image exists after import
+        let list_result = list_images_by_prefix(container_runner, &test_prefix);
+        assert!(list_result.is_ok());
+        assert!(
+            !list_result.unwrap().is_empty(),
+            "Image should exist after import"
+        );
+
+        // Clean up
+        let _ = remove_container(container_runner, &container_name);
+        let _ = remove_image(container_runner, &test_image);
+        let _ = std::fs::remove_file(&export_path);
     }
 }
